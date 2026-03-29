@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.js';
+import { NotesTasks } from '../components/NotesTasks.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -407,6 +408,11 @@ export default function ContactDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Notes & Tasks */}
+      <div style={{ marginTop: 20 }}>
+        <NotesTasks objectType="contact" objectId={contact.id} />
       </div>
     </div>
   );
