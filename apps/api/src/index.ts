@@ -52,6 +52,9 @@ async function start() {
   await app.register(notesTasksRoutes);
   await app.register(importRoutes);
 
+  // Health check — unauthenticated, used by load balancers and uptime monitors
+  app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
+
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API listening on port ${env.PORT}`);
 }

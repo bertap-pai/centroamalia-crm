@@ -1,0 +1,84 @@
+version: '3.9'
+
+# Production compose — use with:
+#   docker compose -f docker-compose.prod.yml up -d
+# Requires a .env file (copy from .env.example and fill in secrets).
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not exposed externally in production
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm}
+      PORT: '3000'
+      NODE_ENV: production
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-centroamalia.com}
+      API_URL: ${API_URL}
+      WEB_URL: ${WEB_URL}
+    # Not exposed directly; nginx proxies /api
+    expose:
+      - '3000'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # In production, the web app uses relative /api/ paths proxied by nginx
+        VITE_API_URL: ''
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '80:80'
+    # TLS termination handled by the host reverse proxy (Caddy/nginx/Traefik)
+    # Forward port 443 → 80 at the host level, or add a Caddy sidecar.
+
+  pg-backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_backups:/backups
+    entrypoint: >
+      sh -c "
+        while true; do
+          FILENAME=/backups/crm_$$(date +%Y%m%d_%H%M%S).dump;
+          pg_dump -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crm} -F c -f $$FILENAME;
+          echo \"Backup written: $$FILENAME\";
+          find /backups -name '*.dump' -mtime +7 -delete;
+          sleep 86400;
+        done
+      "
+
+volumes:
+  postgres_data:
+  pg_backups:

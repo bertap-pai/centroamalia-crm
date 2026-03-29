@@ -21,7 +21,10 @@ COPY package.json pnpm-workspace.yaml ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
 COPY --from=builder /app/packages/db/package.json ./packages/db/
+# Copy migrations so the runtime can apply them on startup
+COPY packages/db/migrations ./packages/db/migrations
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 
-CMD ["node", "apps/api/dist/index.js"]
+# Run migrations then start the server
+CMD ["sh", "-c", "node packages/db/dist/migrate.js && node apps/api/dist/index.js"]
