@@ -1,0 +1,21 @@
+{
+  "name": "crm-centro-amalia",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @crm/db generate",
+    "db:migrate": "pnpm --filter @crm/db migrate",
+    "db:seed": "pnpm --filter @crm/db seed"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

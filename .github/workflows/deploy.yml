@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]       # → staging
+    tags: ['v*']           # → production
+
+jobs:
+  deploy:
+    name: Deploy (${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }})
+    runs-on: ubuntu-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set environment name
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "name=production" >> $GITHUB_OUTPUT
+          else
+            echo "name=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build API image
+        run: |
+          docker build \
+            -t crm-api:${{ github.sha }} \
+            -f apps/api/Dockerfile \
+            .
+
+      - name: Build Web image
+        run: |
+          docker build \
+            -t crm-web:${{ github.sha }} \
+            -f apps/web/Dockerfile \
+            .
+
+      # Deployment step — adapt to your hosting provider (Hetzner, Fly.io, etc.)
+      # Example using Fly.io:
+      # - name: Deploy to Fly.io
+      #   uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: flyctl deploy --remote-only --app crm-${{ steps.env.outputs.name }}
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Placeholder deploy step
+        run: |
+          echo "Deploying crm-api:${{ github.sha }} to ${{ steps.env.outputs.name }}"
+          echo "Configure deployment target in this step."
