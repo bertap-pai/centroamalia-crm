@@ -7,6 +7,7 @@ import ContactDetailPage from './pages/ContactDetailPage.js';
 import DealsListPage from './pages/DealsListPage.js';
 import DealDetailPage from './pages/DealDetailPage.js';
 import AdminPropertiesPage from './pages/AdminPropertiesPage.js';
+import AdminImportPage from './pages/AdminImportPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -67,6 +68,14 @@ export default function App() {
             element={
               <AdminRoute>
                 <AdminPropertiesPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/import"
+            element={
+              <AdminRoute>
+                <AdminImportPage />
               </AdminRoute>
             }
           />

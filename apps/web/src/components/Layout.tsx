@@ -49,6 +49,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Admin
               </div>
               <NavItem to="/admin/properties" label="Propietats" icon="⚙️" />
+              <NavItem to="/admin/import" label="Importació" icon="📥" />
             </>
           )}
         </div>

@@ -37,6 +37,8 @@ export const deals = pgTable(
     createdByUserId: uuid('created_by_user_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // External ID for import deduplication (e.g. HubSpot deal ID)
+    externalId: text('external_id'),
     // Soft delete
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     archivedByUserId: uuid('archived_by_user_id').references(() => users.id, {
@@ -49,6 +51,7 @@ export const deals = pgTable(
     ownerIdx: index('deals_owner_idx').on(t.ownerUserId),
     archivedIdx: index('deals_archived_at_idx').on(t.archivedAt),
     createdAtIdx: index('deals_created_at_idx').on(t.createdAt),
+    externalIdIdx: index('deals_external_id_idx').on(t.externalId),
   }),
 );
 
