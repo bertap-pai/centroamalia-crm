@@ -34,6 +34,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       SESSION_SECRET: ${SESSION_SECRET:-dev-secret-change-me}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-centroamalia.com}
+      API_URL: ${API_URL:-http://localhost:3000}
+      WEB_URL: ${WEB_URL:-http://localhost:5173}
     ports:
       - '3000:3000'
 
@@ -47,5 +49,27 @@ services:
     ports:
       - '5173:5173'
 
+  pg-backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - pg_backups:/backups
+    entrypoint: >
+      sh -c "
+        while true; do
+          FILENAME=/backups/crm_$$(date +%Y%m%d_%H%M%S).dump;
+          pg_dump -h postgres -U postgres -d crm -F c -f $$FILENAME;
+          echo \"Backup written: $$FILENAME\";
+          find /backups -name '*.dump' -mtime +7 -delete;
+          sleep 86400;
+        done
+      "
+
 volumes:
   postgres_data:
+  pg_backups:
