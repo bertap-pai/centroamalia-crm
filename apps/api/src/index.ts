@@ -8,6 +8,9 @@ import oauthPlugin from './plugins/oauth.js';
 import auditPlugin from './plugins/audit.js';
 import { requireAuth, requireAdmin } from './lib/require-auth.js';
 import authRoutes from './routes/auth.js';
+import contactsRoutes from './routes/contacts.js';
+import propertiesRoutes from './routes/properties.js';
+import savedViewsRoutes from './routes/saved-views.js';
 
 const app = Fastify({
   logger: {
@@ -37,6 +40,9 @@ async function start() {
 
   // Routes
   await app.register(authRoutes);
+  await app.register(contactsRoutes);
+  await app.register(propertiesRoutes);
+  await app.register(savedViewsRoutes);
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API listening on port ${env.PORT}`);
