@@ -11,6 +11,8 @@ import authRoutes from './routes/auth.js';
 import contactsRoutes from './routes/contacts.js';
 import propertiesRoutes from './routes/properties.js';
 import savedViewsRoutes from './routes/saved-views.js';
+import pipelinesRoutes from './routes/pipelines.js';
+import dealsRoutes from './routes/deals.js';
 
 const app = Fastify({
   logger: {
@@ -43,6 +45,8 @@ async function start() {
   await app.register(contactsRoutes);
   await app.register(propertiesRoutes);
   await app.register(savedViewsRoutes);
+  await app.register(pipelinesRoutes);
+  await app.register(dealsRoutes);
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API listening on port ${env.PORT}`);

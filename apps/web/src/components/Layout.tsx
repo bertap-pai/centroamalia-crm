@@ -42,7 +42,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Nav */}
         <div style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           <NavItem to="/contacts" label="Contactes" icon="👤" />
-          <NavItem to="/deals" label="Deals" icon="💼" disabled />
+          <NavItem to="/deals" label="Deals" icon="💼" />
         </div>
 
         {/* User */}

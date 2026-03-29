@@ -4,6 +4,8 @@ import Layout from './components/Layout.js';
 import LoginPage from './pages/LoginPage.js';
 import ContactsListPage from './pages/ContactsListPage.js';
 import ContactDetailPage from './pages/ContactDetailPage.js';
+import DealsListPage from './pages/DealsListPage.js';
+import DealDetailPage from './pages/DealDetailPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -32,6 +34,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ContactDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/deals"
+            element={
+              <ProtectedRoute>
+                <DealsListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/deals/:id"
+            element={
+              <ProtectedRoute>
+                <DealDetailPage />
               </ProtectedRoute>
             }
           />
