@@ -95,7 +95,7 @@ cmd_setup() {
   echo ""
   info "=== Setup complete ==="
   info "CRM is running at http://localhost"
-  info "If Caddy is configured, it will be available at https://crm.centroamalia.com"
+  info "If Caddy is configured, it will be available at https://intranet.centroamalia.com"
   info "Run './deploy.sh status' to check container health."
 }
 

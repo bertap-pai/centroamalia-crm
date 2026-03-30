@@ -1,4 +1,4 @@
-# Caddy reverse proxy for crm.centroamalia.com
+# Caddy reverse proxy for intranet.centroamalia.com
 # Handles TLS automatically via Let's Encrypt.
 # Run alongside docker-compose.prod.yml on the host.
 #
@@ -7,6 +7,6 @@
 #
 # Or add a caddy service to docker-compose.prod.yml and mount this file.
 
-crm.centroamalia.com {
+intranet.centroamalia.com {
     reverse_proxy localhost:80
 }
