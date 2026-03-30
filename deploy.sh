@@ -59,7 +59,7 @@ check_env() {
 }
 
 health_check() {
-  local url="${1:-http://localhost/api/health}"
+  local url="${1:-http://localhost:8080/api/health}"
   local retries=20
   local i=0
   info "Waiting for API to become healthy at $url ..."
@@ -94,8 +94,12 @@ cmd_setup() {
 
   echo ""
   info "=== Setup complete ==="
-  info "CRM is running at http://localhost"
-  info "If Caddy is configured, it will be available at https://intranet.centroamalia.com"
+  info "Docker containers are running. CRM web is on host port 8080."
+  info ""
+  info "Next: configure your existing web server to proxy /crm/ → http://localhost:8080/"
+  info "  See the deployment guide for Apache/Nginx proxy config snippets."
+  info "  After that, the CRM will be at https://intranet.centroamalia.com/crm/"
+  info ""
   info "Run './deploy.sh status' to check container health."
 }
 
@@ -120,7 +124,7 @@ cmd_status() {
   echo ""
   info "=== Health check ==="
   local health
-  health=$(curl -sf http://localhost/api/health 2>/dev/null || echo '{"status":"unreachable"}')
+  health=$(curl -sf http://localhost:8080/api/health 2>/dev/null || echo '{"status":"unreachable"}')
   echo "$health"
   echo ""
 }

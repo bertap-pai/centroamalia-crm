@@ -9,6 +9,9 @@ RUN pnpm install
 COPY apps/web apps/web
 ARG VITE_API_URL=http://localhost:3000
 ENV VITE_API_URL=$VITE_API_URL
+# Set to /crm (no trailing slash) when deploying under a sub-path
+ARG VITE_BASE_PATH=
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN pnpm --filter @crm/web build
 
 FROM nginx:alpine

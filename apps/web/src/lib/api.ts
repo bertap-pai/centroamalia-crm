@@ -1,7 +1,9 @@
+import { BASE_PATH } from './base-path.js';
+
 async function apiFetch(path: string, opts?: RequestInit): Promise<any> {
-  const res = await fetch(path, { credentials: 'include', ...opts });
+  const res = await fetch(BASE_PATH + path, { credentials: 'include', ...opts });
   if (res.status === 401) {
-    window.location.href = '/login';
+    window.location.href = `${BASE_PATH}/login`;
     throw new Error('Unauthorized');
   }
   if (res.status === 204) return null;

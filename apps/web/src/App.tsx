@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BASE_PATH } from './lib/base-path.js';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import Layout from './components/Layout.js';
 import LoginPage from './pages/LoginPage.js';
@@ -27,7 +28,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={BASE_PATH || '/'}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

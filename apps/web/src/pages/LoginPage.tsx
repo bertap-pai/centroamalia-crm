@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
+import { BASE_PATH } from '../lib/base-path.js';
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_authorized: 'El teu compte no té accés a aquesta aplicació.',
@@ -36,7 +37,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <a href="/auth/google" style={styles.googleBtn}>
+        <a href={`${BASE_PATH}/auth/google`} style={styles.googleBtn}>
           <GoogleIcon />
           <span>Inicia sessió amb Google</span>
         </a>

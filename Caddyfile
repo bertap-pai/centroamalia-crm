@@ -1,12 +1,12 @@
-# Caddy reverse proxy for intranet.centroamalia.com
-# Handles TLS automatically via Let's Encrypt.
-# Run alongside docker-compose.prod.yml on the host.
+# NOTE: This Caddyfile is NOT needed for the sub-path deployment at intranet.centroamalia.com/crm/
+# because the existing server already handles TLS for that domain.
 #
-# Usage:
-#   caddy run --config Caddyfile
+# Only use this if you ever want to run the CRM on a completely separate domain
+# with its own TLS certificate (e.g. crm.example.com pointing only to this Docker setup).
 #
-# Or add a caddy service to docker-compose.prod.yml and mount this file.
+# For the current setup, configure your existing Apache or Nginx server to proxy /crm/ instead.
+# See the deployment guide in the issue plan document.
 
-intranet.centroamalia.com {
-    reverse_proxy localhost:80
-}
+# example.com {
+#     reverse_proxy localhost:8080
+# }
