@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { OAuth2Token } from '@fastify/oauth2';
 import { eq } from 'drizzle-orm';
 import { users } from '@crm/db';
 import { env } from '../env.js';
@@ -24,7 +25,9 @@ function isEmailAllowed(email: string): boolean {
 const authRoutes: FastifyPluginAsync = async (app) => {
   // Google OAuth2 callback
   app.get('/auth/google/callback', async (req, reply) => {
-    let tokenData: Awaited<ReturnType<typeof app.googleOAuth2.getAccessTokenFromAuthorizationCodeFlow>>;
+    // Explicit OAuth2Token type avoids the Awaited<ReturnType<overload>> pitfall
+    // where TS resolves to the last (void-returning) overload.
+    let tokenData: OAuth2Token;
     try {
       tokenData = await app.googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(req);
     } catch (err) {

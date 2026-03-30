@@ -1,5 +1,5 @@
 import './types.js';
-import Fastify from 'fastify';
+import Fastify, { type FastifyServerOptions } from 'fastify';
 import cors from '@fastify/cors';
 import { env } from './env.js';
 import dbPlugin from './plugins/db.js';
@@ -16,15 +16,14 @@ import dealsRoutes from './routes/deals.js';
 import notesTasksRoutes from './routes/notes-tasks.js';
 import importRoutes from './routes/import.js';
 
-const app = Fastify({
-  logger: {
-    level: env.NODE_ENV === 'production' ? 'info' : 'debug',
-    transport:
-      env.NODE_ENV !== 'production'
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
-  },
-});
+// Build logger options without optional properties set to undefined —
+// exactOptionalPropertyTypes rejects `transport: undefined`.
+const loggerOptions: FastifyServerOptions['logger'] =
+  env.NODE_ENV === 'production'
+    ? { level: 'info' }
+    : { level: 'debug', transport: { target: 'pino-pretty', options: { colorize: true } } };
+
+const app = Fastify({ logger: loggerOptions });
 
 async function start() {
   // Core infrastructure
