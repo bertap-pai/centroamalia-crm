@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { OAuth2Token } from '@fastify/oauth2';
-import { eq, count } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { users } from '@crm/db';
 import { env } from '../env.js';
 
@@ -54,18 +54,14 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.redirect(`${env.WEB_URL}/login?error=not_authorized`);
     }
 
-    // First user ever gets admin role automatically
-    const [{ n: userCount }] = await app.db.select({ n: count() }).from(users);
-    const isFirstUser = userCount === 0;
-
-    // Upsert user
+    // Upsert user — everyone gets admin by default for now
     const [user] = await app.db
       .insert(users)
       .values({
         email: profile.email,
         name: profile.name,
         googleId: profile.id,
-        role: isFirstUser ? 'admin' : 'user',
+        role: 'admin',
       })
       .onConflictDoUpdate({
         target: users.email,
