@@ -9,6 +9,7 @@ import DealsListPage from './pages/DealsListPage.js';
 import DealDetailPage from './pages/DealDetailPage.js';
 import AdminPropertiesPage from './pages/AdminPropertiesPage.js';
 import AdminPipelinesPage from './pages/AdminPipelinesPage.js';
+import AdminUsersPage from './pages/AdminUsersPage.js';
 import AdminImportPage from './pages/AdminImportPage.js';
 import './styles/globals.css';
 
@@ -63,6 +64,14 @@ export default function App() {
               <ProtectedRoute>
                 <DealDetailPage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <AdminRoute>
+                <AdminUsersPage />
+              </AdminRoute>
             }
           />
           <Route

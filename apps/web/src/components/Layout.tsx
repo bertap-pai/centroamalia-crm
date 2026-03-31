@@ -48,6 +48,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ margin: '12px 10px 6px', fontSize: 10, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                 Admin
               </div>
+              <NavItem to="/admin/users" label="Usuaris" icon="👥" />
               <NavItem to="/admin/pipelines" label="Pipelines" icon="🔀" />
               <NavItem to="/admin/properties" label="Propietats" icon="⚙️" />
               <NavItem to="/admin/import" label="Importació" icon="📥" />
