@@ -15,6 +15,7 @@ import pipelinesRoutes from './routes/pipelines.js';
 import dealsRoutes from './routes/deals.js';
 import notesTasksRoutes from './routes/notes-tasks.js';
 import importRoutes from './routes/import.js';
+import exportRoutes from './routes/export.js';
 import usersRoutes from './routes/users.js';
 
 // Build logger options without optional properties set to undefined —
@@ -51,6 +52,7 @@ async function start() {
   await app.register(dealsRoutes);
   await app.register(notesTasksRoutes);
   await app.register(importRoutes);
+  await app.register(exportRoutes);
   await app.register(usersRoutes);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors

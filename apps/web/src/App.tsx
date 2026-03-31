@@ -11,6 +11,7 @@ import AdminPropertiesPage from './pages/AdminPropertiesPage.js';
 import AdminPipelinesPage from './pages/AdminPipelinesPage.js';
 import AdminUsersPage from './pages/AdminUsersPage.js';
 import AdminImportPage from './pages/AdminImportPage.js';
+import AdminExportPage from './pages/AdminExportPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -95,6 +96,14 @@ export default function App() {
             element={
               <AdminRoute>
                 <AdminImportPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/export"
+            element={
+              <AdminRoute>
+                <AdminExportPage />
               </AdminRoute>
             }
           />
