@@ -16,6 +16,7 @@
     "@fastify/multipart": "^9.4.0",
     "@fastify/oauth2": "^7.7.0",
     "@fastify/session": "^10.9.0",
+    "drizzle-orm": "^0.30.10",
     "fastify": "^4.28.0",
     "fastify-plugin": "^4.5.1",
     "postgres": "^3.4.4",
@@ -23,7 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.2",
-    "drizzle-orm": "^0.30.10",
     "tsx": "^4.15.6",
     "typescript": "^5.4.5"
   }
