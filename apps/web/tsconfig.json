@@ -11,8 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "noEmit": true,
-    "types": ["vite/client"]
+    "noEmit": true
   },
   "include": ["src"]
 }

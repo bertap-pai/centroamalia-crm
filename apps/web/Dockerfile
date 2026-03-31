@@ -2,9 +2,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 RUN corepack enable
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 COPY apps/web apps/web
 ARG VITE_API_URL=http://localhost:3000
