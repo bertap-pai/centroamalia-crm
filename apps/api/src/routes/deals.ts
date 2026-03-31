@@ -778,15 +778,4 @@ export default async function dealsRoutes(app: FastifyInstance) {
     },
   );
 
-  // ----------------------------------------------------------------- users
-  app.get(
-    '/api/users',
-    { preHandler: app.requireAuth },
-    async () => {
-      return app.db
-        .select({ id: users.id, name: users.name, email: users.email })
-        .from(users)
-        .orderBy(asc(users.name));
-    },
-  );
 }
