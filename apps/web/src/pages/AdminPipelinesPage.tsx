@@ -15,6 +15,7 @@ interface Pipeline {
   name: string;
   slug: string;
   position: number;
+  defaultView: 'list' | 'kanban';
   stages: Stage[];
 }
 
@@ -132,6 +133,17 @@ export default function AdminPipelinesPage() {
       setError('Error creant l\'etapa.');
     } finally {
       setSavingStage(false);
+    }
+  }
+
+  // ── Set default view ────────────────────────────────────────────────────
+
+  async function handleSetDefaultView(id: string, view: 'list' | 'kanban') {
+    try {
+      await api.patch(`/api/pipelines/${id}`, { defaultView: view });
+      load();
+    } catch {
+      setError('Error actualitzant la vista per defecte.');
     }
   }
 
@@ -259,10 +271,23 @@ export default function AdminPipelinesPage() {
               </div>
             ) : (
               <>
-                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
-                  {pipeline.name}
-                  <span style={{ marginLeft: 8, fontSize: 11, color: '#999', fontWeight: 400 }}>{pipeline.slug}</span>
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    {pipeline.name}
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#999', fontWeight: 400 }}>{pipeline.slug}</span>
+                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: '#888' }}>Vista per defecte:</span>
+                    <select
+                      value={pipeline.defaultView ?? 'list'}
+                      onChange={(e) => handleSetDefaultView(pipeline.id, e.target.value as 'list' | 'kanban')}
+                      style={{ fontSize: 12, padding: '3px 8px', border: '1px solid var(--color-border)', borderRadius: 5, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}
+                    >
+                      <option value="list">Llista</option>
+                      <option value="kanban">Kanban</option>
+                    </select>
+                  </div>
+                </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     onClick={() => { setEditingPipelineId(pipeline.id); setEditingPipelineName(pipeline.name); }}

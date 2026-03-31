@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useAuth } from '../context/AuthContext.js';
 import DealCreateModal from '../components/DealCreateModal.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,7 +48,22 @@ interface Pipeline {
   name: string;
   slug: string;
   position: number;
+  defaultView: 'list' | 'kanban';
   stages: Stage[];
+}
+
+interface SavedView {
+  id: string;
+  name: string;
+  isTeam: boolean;
+  createdByUserId: string | null;
+  config: {
+    columns?: string[];
+    filters?: Record<string, string>;
+    sort?: string;
+    sortDir?: 'asc' | 'desc';
+    viewMode?: 'list' | 'kanban';
+  };
 }
 
 interface PropertyDef {
@@ -74,12 +90,24 @@ type ViewMode = 'list' | 'kanban';
 
 export default function DealsListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [propertyDefs, setPropertyDefs] = useState<PropertyDef[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
+
+  // Saved views
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [savingView, setSavingView] = useState(false);
+  const [viewName, setViewName] = useState('');
+  const [showSaveView, setShowSaveView] = useState(false);
+
+  // Sort
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showCreate, setShowCreate] = useState(false);
 
   // List state
@@ -112,17 +140,22 @@ export default function DealsListPage() {
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Load pipelines + property defs + users once
+  // Load pipelines + property defs + users + saved views once
   useEffect(() => {
     Promise.all([
       api.get('/api/pipelines'),
       api.get('/api/properties?scope=deal'),
       api.get('/api/users'),
-    ]).then(([ps, defs, us]) => {
+      api.get('/api/saved-views?objectType=deal'),
+    ]).then(([ps, defs, us, views]) => {
       setPipelines(ps);
       setPropertyDefs(defs);
       setUsers(us);
-      if (ps.length > 0) setSelectedPipelineId(ps[0].id);
+      setSavedViews(views ?? []);
+      if (ps.length > 0) {
+        setSelectedPipelineId(ps[0].id);
+        setViewMode(ps[0].defaultView ?? 'list');
+      }
     }).catch(() => {});
   }, []);
 
@@ -143,6 +176,8 @@ export default function DealsListPage() {
     const params = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
+      sort: sortField,
+      sortDir,
       ...(debouncedSearch ? { q: debouncedSearch } : {}),
       ...(includeArchived ? { includeArchived: 'true' } : {}),
       ...(selectedPipelineId ? { pipelineId: selectedPipelineId } : {}),
@@ -172,7 +207,7 @@ export default function DealsListPage() {
       });
     return () => { cancelled = true; };
   }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, propColumns,
-      filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters]);
+      filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters, sortField, sortDir]);
 
   // Fetch kanban
   useEffect(() => {
@@ -223,6 +258,40 @@ export default function DealsListPage() {
     } finally {
       setDraggingDealId(null);
     }
+  }
+
+  function applyView(view: SavedView) {
+    setActiveViewId(view.id);
+    if (view.config.columns) setPropColumns(view.config.columns);
+    if (view.config.sort) setSortField(view.config.sort);
+    if (view.config.sortDir) setSortDir(view.config.sortDir);
+    if (view.config.viewMode) setViewMode(view.config.viewMode);
+    setPage(1);
+  }
+
+  async function handleSaveView(isTeam: boolean) {
+    if (!viewName.trim()) return;
+    setSavingView(true);
+    try {
+      const view = await api.post('/api/saved-views', {
+        name: viewName.trim(),
+        objectType: 'deal',
+        config: { columns: propColumns, sort: sortField, sortDir, viewMode },
+        isTeam,
+      });
+      setSavedViews((prev) => [...prev, view]);
+      setActiveViewId(view.id);
+      setShowSaveView(false);
+      setViewName('');
+    } finally {
+      setSavingView(false);
+    }
+  }
+
+  async function handleDeleteView(id: string) {
+    await api.delete(`/api/saved-views/${id}`);
+    setSavedViews((prev) => prev.filter((v) => v.id !== id));
+    if (activeViewId === id) setActiveViewId(null);
   }
 
   function clearFilters() {
@@ -280,7 +349,7 @@ export default function DealsListPage() {
             {pipelines.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedPipelineId(p.id); setPage(1); setFilterStageId(''); }}
+                onClick={() => { setSelectedPipelineId(p.id); setPage(1); setFilterStageId(''); setViewMode(p.defaultView ?? 'list'); }}
                 style={{
                   padding: '5px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
                   border: '1px solid var(--color-border)',
@@ -408,7 +477,92 @@ export default function DealsListPage() {
             )}
           </div>
         )}
+
+        {/* Save view button */}
+        {viewMode === 'list' && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSaveView((v) => !v)}
+              style={{
+                background: '#fff', border: '1px solid var(--color-border)',
+                padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#555',
+              }}
+            >
+              Guardar vista
+            </button>
+            {showSaveView && (
+              <div
+                style={{
+                  position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff',
+                  border: '1px solid var(--color-border)', borderRadius: 8, zIndex: 20,
+                  padding: 12, minWidth: 240, boxShadow: 'var(--shadow-md)',
+                }}
+              >
+                <input
+                  autoFocus
+                  value={viewName}
+                  onChange={(e) => setViewName(e.target.value)}
+                  placeholder="Nom de la vista..."
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: 5, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }}
+                />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => handleSaveView(false)}
+                    disabled={savingView || !viewName.trim()}
+                    style={{ flex: 1, background: 'var(--color-primary)', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    Personal
+                  </button>
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={() => handleSaveView(true)}
+                      disabled={savingView || !viewName.trim()}
+                      style={{ flex: 1, background: '#6c757d', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Equip
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Saved views tabs */}
+      {savedViews.length > 0 && (
+        <div
+          style={{
+            display: 'flex', gap: 4, padding: '8px 24px 0',
+            background: '#fff', borderBottom: '1px solid var(--color-border)',
+            overflowX: 'auto', flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={() => { setActiveViewId(null); setPropColumns([]); setSortField('created_at'); setSortDir('desc'); setPage(1); }}
+            style={{ padding: '6px 12px', borderRadius: '6px 6px 0 0', fontSize: 12, cursor: 'pointer', border: 'none', background: activeViewId === null ? 'var(--color-primary)' : 'transparent', color: activeViewId === null ? '#fff' : '#666', fontWeight: activeViewId === null ? 600 : 400 }}
+          >
+            Tots
+          </button>
+          {savedViews.map((v) => (
+            <div key={v.id} style={{ display: 'flex', alignItems: 'center' }}>
+              <button
+                onClick={() => applyView(v)}
+                style={{ padding: '6px 12px', borderRadius: '6px 6px 0 0', fontSize: 12, cursor: 'pointer', border: 'none', background: activeViewId === v.id ? 'var(--color-primary)' : 'transparent', color: activeViewId === v.id ? '#fff' : '#666', fontWeight: activeViewId === v.id ? 600 : 400 }}
+              >
+                {v.isTeam ? '👥 ' : ''}{v.name}
+              </button>
+              {(v.createdByUserId === user?.id || (v.isTeam && user?.role === 'admin')) && (
+                <button
+                  onClick={() => handleDeleteView(v.id)}
+                  title="Eliminar vista"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: 12, padding: '0 4px' }}
+                >×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filter bar */}
       {showFilterBar && viewMode === 'list' && (
@@ -580,6 +734,14 @@ export default function DealsListPage() {
             pageSize={pageSize}
             propColumns={propColumns}
             propertyDefs={propertyDefs}
+            sortField={sortField}
+            sortDir={sortDir}
+            onSort={(field) => {
+              if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+              else { setSortField(field); setSortDir('desc'); }
+              setPage(1);
+            }}
+            onReorderColumns={setPropColumns}
             onPageChange={setPage}
             onDealClick={(id) => navigate(`/deals/${id}`)}
             fmtDate={fmtDate}
@@ -611,10 +773,10 @@ export default function DealsListPage() {
         />
       )}
 
-      {/* Close column picker on outside click */}
-      {showColumnPicker && (
+      {/* Close popovers on outside click */}
+      {(showColumnPicker || showSaveView) && (
         <div
-          onClick={() => setShowColumnPicker(false)}
+          onClick={() => { setShowColumnPicker(false); setShowSaveView(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 19 }}
         />
       )}
@@ -626,6 +788,7 @@ export default function DealsListPage() {
 
 function ListView({
   deals, loading, error, total, page, pageSize, propColumns, propertyDefs,
+  sortField, sortDir, onSort, onReorderColumns,
   onPageChange, onDealClick, fmtDate, dealName,
 }: {
   deals: Deal[];
@@ -636,6 +799,10 @@ function ListView({
   pageSize: number;
   propColumns: string[];
   propertyDefs: PropertyDef[];
+  sortField: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: string) => void;
+  onReorderColumns: (cols: string[]) => void;
   onPageChange: (p: number) => void;
   onDealClick: (id: string) => void;
   fmtDate: (s: string | null) => string;
@@ -643,6 +810,29 @@ function ListView({
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const defFor = (key: string) => propertyDefs.find((d) => d.key === key);
+
+  // Column drag state (refs, no re-render needed)
+  const dragColRef = useRef<string | null>(null);
+
+  function handleColDragStart(key: string) {
+    dragColRef.current = key;
+  }
+
+  function handleColDrop(targetKey: string) {
+    const from = dragColRef.current;
+    dragColRef.current = null;
+    if (!from || from === targetKey) return;
+    const cols = [...propColumns];
+    const fi = cols.indexOf(from);
+    const ti = cols.indexOf(targetKey);
+    if (fi === -1 || ti === -1) return;
+    cols.splice(fi, 1);
+    cols.splice(ti, 0, from);
+    onReorderColumns(cols);
+  }
+
+  const sortIcon = (field: string) =>
+    sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   if (loading) return <div style={{ padding: 48, color: '#999', textAlign: 'center' }}>Carregant...</div>;
   if (error) return <div style={{ padding: 48, color: 'var(--color-error)', textAlign: 'center' }}>{error}</div>;
@@ -655,12 +845,31 @@ function ListView({
             <tr style={{ background: '#f9f9f9', borderBottom: '1px solid var(--color-border)' }}>
               <th style={th}>Contacte</th>
               <th style={th}>Telèfon</th>
-              <th style={th}>Pipeline · Etapa</th>
+              <th
+                style={{ ...th, cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => onSort('current_stage_entered_at')}
+              >
+                Pipeline · Etapa{sortIcon('current_stage_entered_at')}
+              </th>
               <th style={th}>Responsable</th>
               {propColumns.map((key) => (
-                <th key={key} style={th}>{defFor(key)?.label ?? key}</th>
+                <th
+                  key={key}
+                  draggable
+                  onDragStart={() => handleColDragStart(key)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleColDrop(key)}
+                  style={{ ...th, cursor: 'grab', userSelect: 'none' }}
+                >
+                  {defFor(key)?.label ?? key}
+                </th>
               ))}
-              <th style={th}>Creat</th>
+              <th
+                style={{ ...th, cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => onSort('created_at')}
+              >
+                Creat{sortIcon('created_at')}
+              </th>
             </tr>
           </thead>
           <tbody>

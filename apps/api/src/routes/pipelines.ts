@@ -89,7 +89,7 @@ export default async function pipelinesRoutes(app: FastifyInstance) {
     { preHandler: app.requireAdmin },
     async (req, reply) => {
       const { id } = req.params as { id: string };
-      const body = req.body as { name?: string; position?: number };
+      const body = req.body as { name?: string; position?: number; defaultView?: string };
 
       const [existing] = await app.db
         .select()
@@ -101,6 +101,7 @@ export default async function pipelinesRoutes(app: FastifyInstance) {
       const updates: Partial<typeof pipelines.$inferInsert> = {};
       if (body.name !== undefined) updates.name = body.name.trim();
       if (body.position !== undefined) updates.position = body.position;
+      if (body.defaultView === 'list' || body.defaultView === 'kanban') updates.defaultView = body.defaultView;
 
       const [updated] = await app.db
         .update(pipelines)
