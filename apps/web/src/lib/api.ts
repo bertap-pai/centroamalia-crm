@@ -28,6 +28,7 @@ function jsonOpts(method: string, body?: unknown): RequestInit {
 export const api = {
   get: (path: string) => apiFetch(path),
   post: (path: string, body?: unknown) => apiFetch(path, jsonOpts('POST', body)),
+  put: (path: string, body?: unknown) => apiFetch(path, jsonOpts('PUT', body)),
   patch: (path: string, body?: unknown) => apiFetch(path, jsonOpts('PATCH', body)),
   delete: (path: string) => apiFetch(path, { method: 'DELETE' }),
 };

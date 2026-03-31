@@ -13,6 +13,10 @@ import AdminUsersPage from './pages/AdminUsersPage.js';
 import AdminImportPage from './pages/AdminImportPage.js';
 import AdminExportPage from './pages/AdminExportPage.js';
 import TasksPage from './pages/TasksPage.js';
+import FormsListPage from './pages/FormsListPage.js';
+import FormEditorPage from './pages/FormEditorPage.js';
+import FormSubmissionsPage from './pages/FormSubmissionsPage.js';
+import FormEmbedPage from './pages/FormEmbedPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -116,6 +120,31 @@ export default function App() {
               </AdminRoute>
             }
           />
+          <Route
+            path="/forms"
+            element={
+              <ProtectedRoute>
+                <FormsListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/forms/:id/edit"
+            element={
+              <ProtectedRoute>
+                <FormEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/forms/:id/submissions"
+            element={
+              <ProtectedRoute>
+                <FormSubmissionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/forms/embed/:id" element={<FormEmbedPage />} />
           <Route path="/" element={<Navigate to="/contacts" replace />} />
           <Route path="*" element={<Navigate to="/contacts" replace />} />
         </Routes>

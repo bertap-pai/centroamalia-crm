@@ -17,6 +17,7 @@ import notesTasksRoutes from './routes/notes-tasks.js';
 import importRoutes from './routes/import.js';
 import exportRoutes from './routes/export.js';
 import usersRoutes from './routes/users.js';
+import formsRoutes from './routes/forms.js';
 
 // Build logger options without optional properties set to undefined —
 // exactOptionalPropertyTypes rejects `transport: undefined`.
@@ -54,6 +55,7 @@ async function start() {
   await app.register(importRoutes);
   await app.register(exportRoutes);
   await app.register(usersRoutes);
+  await app.register(formsRoutes);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
