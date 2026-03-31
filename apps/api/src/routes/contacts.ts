@@ -6,6 +6,8 @@ import {
   ilike,
   isNull,
   isNotNull,
+  gte,
+  lte,
   desc,
   asc,
   count,
@@ -38,6 +40,8 @@ export default async function contactsRoutes(app: FastifyInstance) {
       const pageSize = Math.min(200, Math.max(1, parseInt(q['pageSize'] ?? '50', 10)));
       const offset = (page - 1) * pageSize;
       const columns = q['columns'] ? q['columns'].split(',').filter(Boolean) : [];
+      const createdFrom = q['createdFrom'];
+      const createdTo = q['createdTo'];
 
       // Parse property filters: filter[key]=value
       const propFilters: Record<string, string> = {};
@@ -49,6 +53,8 @@ export default async function contactsRoutes(app: FastifyInstance) {
       // Build WHERE
       const conditions: ReturnType<typeof eq>[] = [];
       if (!includeArchived) conditions.push(isNull(contacts.archivedAt) as any);
+      if (createdFrom) conditions.push(gte(contacts.createdAt, new Date(createdFrom)) as any);
+      if (createdTo) conditions.push(lte(contacts.createdAt, new Date(createdTo)) as any);
       if (search) {
         const like = `%${search}%`;
         conditions.push(

@@ -3,6 +3,18 @@ import { asc, eq, ne } from 'drizzle-orm';
 import { users } from '@crm/db';
 
 export default async function usersRoutes(app: FastifyInstance) {
+  // ---------------------------------------------------- list (auth required)
+  app.get(
+    '/api/users',
+    { preHandler: app.requireAuth },
+    async () => {
+      return app.db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .orderBy(asc(users.name));
+    },
+  );
+
   // ------------------------------------------------------------------ list
   app.get(
     '/api/admin/users',

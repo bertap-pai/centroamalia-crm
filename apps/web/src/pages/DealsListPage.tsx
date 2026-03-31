@@ -59,6 +59,11 @@ interface PropertyDef {
   options: Array<{ key: string; label: string }> | null;
 }
 
+interface UserOption {
+  id: string;
+  name: string | null;
+}
+
 interface KanbanStage extends Stage {
   deals: (Deal & { primaryContact: PrimaryContact | null; ownerName: string | null })[];
 }
@@ -72,6 +77,7 @@ export default function DealsListPage() {
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [propertyDefs, setPropertyDefs] = useState<PropertyDef[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [showCreate, setShowCreate] = useState(false);
@@ -88,6 +94,14 @@ export default function DealsListPage() {
   const pageSize = 50;
   const [propColumns, setPropColumns] = useState<string[]>([]);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [showFilterBar, setShowFilterBar] = useState(false);
+
+  // Advanced filters
+  const [filterStageId, setFilterStageId] = useState('');
+  const [filterOwnerUserId, setFilterOwnerUserId] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
+  const [propFilters, setPropFilters] = useState<Record<string, string>>({});
 
   // Kanban state
   const [kanbanData, setKanbanData] = useState<{ pipeline: Pipeline; stages: KanbanStage[] } | null>(null);
@@ -98,14 +112,16 @@ export default function DealsListPage() {
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Load pipelines + property defs once
+  // Load pipelines + property defs + users once
   useEffect(() => {
     Promise.all([
       api.get('/api/pipelines'),
       api.get('/api/properties?scope=deal'),
-    ]).then(([ps, defs]) => {
+      api.get('/api/users'),
+    ]).then(([ps, defs, us]) => {
       setPipelines(ps);
       setPropertyDefs(defs);
+      setUsers(us);
       if (ps.length > 0) setSelectedPipelineId(ps[0].id);
     }).catch(() => {});
   }, []);
@@ -131,7 +147,14 @@ export default function DealsListPage() {
       ...(includeArchived ? { includeArchived: 'true' } : {}),
       ...(selectedPipelineId ? { pipelineId: selectedPipelineId } : {}),
       ...(propColumns.length > 0 ? { columns: propColumns.join(',') } : {}),
+      ...(filterStageId ? { stageId: filterStageId } : {}),
+      ...(filterOwnerUserId ? { ownerUserId: filterOwnerUserId } : {}),
+      ...(createdFrom ? { createdFrom } : {}),
+      ...(createdTo ? { createdTo } : {}),
     });
+    for (const [key, val] of Object.entries(propFilters)) {
+      if (val) params.set(`filter[${key}]`, val);
+    }
 
     api.get(`/api/deals?${params}`)
       .then((res) => {
@@ -148,7 +171,8 @@ export default function DealsListPage() {
         }
       });
     return () => { cancelled = true; };
-  }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, propColumns]);
+  }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, propColumns,
+      filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters]);
 
   // Fetch kanban
   useEffect(() => {
@@ -185,7 +209,6 @@ export default function DealsListPage() {
     setDragOverStageId(null);
     if (!draggingDealId) return;
 
-    // Find current stage to avoid no-op
     const currentStageId = kanbanData?.stages
       .find((s) => s.deals.some((d) => d.id === draggingDealId))?.id;
     if (currentStageId === targetStageId) { setDraggingDealId(null); return; }
@@ -201,6 +224,22 @@ export default function DealsListPage() {
       setDraggingDealId(null);
     }
   }
+
+  function clearFilters() {
+    setFilterStageId('');
+    setFilterOwnerUserId('');
+    setCreatedFrom('');
+    setCreatedTo('');
+    setPropFilters({});
+    setPage(1);
+  }
+
+  const activeFilterCount = [
+    filterStageId ? 1 : 0,
+    filterOwnerUserId ? 1 : 0,
+    createdFrom || createdTo ? 1 : 0,
+    ...Object.values(propFilters).map((v) => (v ? 1 : 0)),
+  ].reduce((a, b) => a + b, 0);
 
   const fmtDate = (s: string | null) => {
     if (!s) return '—';
@@ -241,7 +280,7 @@ export default function DealsListPage() {
             {pipelines.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedPipelineId(p.id); setPage(1); }}
+                onClick={() => { setSelectedPipelineId(p.id); setPage(1); setFilterStageId(''); }}
                 style={{
                   padding: '5px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
                   border: '1px solid var(--color-border)',
@@ -290,7 +329,7 @@ export default function DealsListPage() {
       <div
         style={{
           padding: '12px 24px', borderBottom: '1px solid var(--color-border)',
-          background: '#fff', display: 'flex', alignItems: 'center', gap: 12,
+          background: '#fff', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}
       >
         <input
@@ -312,6 +351,22 @@ export default function DealsListPage() {
           />
           Incloure arxivats
         </label>
+
+        {/* Filter toggle */}
+        {viewMode === 'list' && (
+          <button
+            onClick={() => setShowFilterBar(!showFilterBar)}
+            style={{
+              background: activeFilterCount > 0 ? '#eef2ff' : '#fff',
+              borderColor: activeFilterCount > 0 ? 'var(--color-primary)' : 'var(--color-border)',
+              color: activeFilterCount > 0 ? 'var(--color-primary)' : '#555',
+              border: '1px solid',
+              padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} ▾
+          </button>
+        )}
 
         {viewMode === 'list' && (
           <div style={{ position: 'relative', marginLeft: 'auto' }}>
@@ -354,6 +409,145 @@ export default function DealsListPage() {
           </div>
         )}
       </div>
+
+      {/* Filter bar */}
+      {showFilterBar && viewMode === 'list' && (
+        <div
+          style={{
+            padding: '14px 24px', borderBottom: '1px solid var(--color-border)',
+            background: '#f9f9fb', display: 'flex', flexDirection: 'column', gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* Stage filter */}
+            {currentPipeline && currentPipeline.stages.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Etapa</span>
+                <select
+                  value={filterStageId}
+                  onChange={(e) => { setFilterStageId(e.target.value); setPage(1); }}
+                  style={selectStyle}
+                >
+                  <option value="">Totes les etapes</option>
+                  {currentPipeline.stages.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Owner filter */}
+            {users.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Responsable</span>
+                <select
+                  value={filterOwnerUserId}
+                  onChange={(e) => { setFilterOwnerUserId(e.target.value); setPage(1); }}
+                  style={selectStyle}
+                >
+                  <option value="">Tots els responsables</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Date range */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Data creació</span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
+                  style={inputStyle}
+                />
+                <span style={{ fontSize: 12, color: '#888' }}>–</span>
+                <input
+                  type="date"
+                  value={createdTo}
+                  onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Property filters */}
+          {dealPropDefs.length > 0 && (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {dealPropDefs.map((def) => (
+                <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{def.label}</span>
+                  {def.type === 'select' || def.type === 'multiselect' ? (
+                    <select
+                      value={propFilters[def.key] ?? ''}
+                      onChange={(e) => {
+                        setPropFilters((prev) => {
+                          const next = { ...prev };
+                          if (e.target.value) next[def.key] = e.target.value;
+                          else delete next[def.key];
+                          return next;
+                        });
+                        setPage(1);
+                      }}
+                      style={selectStyle}
+                    >
+                      <option value="">Tots</option>
+                      {def.options?.map((o) => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : def.type === 'date' || def.type === 'datetime' ? (
+                    <input
+                      type="date"
+                      value={propFilters[def.key] ?? ''}
+                      onChange={(e) => {
+                        setPropFilters((prev) => {
+                          const next = { ...prev };
+                          if (e.target.value) next[def.key] = e.target.value;
+                          else delete next[def.key];
+                          return next;
+                        });
+                        setPage(1);
+                      }}
+                      style={inputStyle}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={propFilters[def.key] ?? ''}
+                      placeholder={`Filtra per ${def.label.toLowerCase()}...`}
+                      onChange={(e) => {
+                        setPropFilters((prev) => {
+                          const next = { ...prev };
+                          if (e.target.value) next[def.key] = e.target.value;
+                          else delete next[def.key];
+                          return next;
+                        });
+                        setPage(1);
+                      }}
+                      style={{ ...inputStyle, minWidth: 160 }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeFilterCount > 0 && (
+            <div>
+              <button
+                onClick={clearFilters}
+                style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', color: '#e74c3c', borderColor: '#e74c3c', background: '#fff', border: '1px solid', borderRadius: 5 }}
+              >
+                Esborrar filtres
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Validation error banner */}
       {validationError && (
@@ -654,4 +848,14 @@ const td: React.CSSProperties = {
 const pageBtn: React.CSSProperties = {
   padding: '5px 12px', border: '1px solid var(--color-border)', borderRadius: 5,
   background: '#fff', cursor: 'pointer', fontSize: 12,
+};
+
+const selectStyle: React.CSSProperties = {
+  padding: '6px 10px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none', minWidth: 150,
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '6px 10px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
 };

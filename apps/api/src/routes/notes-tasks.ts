@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, and, isNull, desc, inArray } from 'drizzle-orm';
+import { eq, and, isNull, gte, lte, desc, inArray } from 'drizzle-orm';
 import { notes, tasks, users, contacts, deals } from '@crm/db';
 
 export default async function notesTasksRoutes(app: FastifyInstance) {
@@ -96,13 +96,13 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
   // List tasks — filtered by object when objectType+objectId provided, or all tasks otherwise
   app.get('/api/tasks', { preHandler: app.requireAuth }, async (req, reply) => {
     const q = req.query as Record<string, string>;
-    const { objectType, objectId, status } = q;
+    const { objectType, objectId, status, assignedToUserId, dueDateFrom, dueDateTo } = q;
 
-    // If filtering by object, both params are required
-    if ((objectType && !objectId) || (!objectType && objectId)) {
+    // If filtering by object, both params are required (unless standalone objectType filter)
+    if (objectId && !objectType) {
       return reply.code(400).send({ error: 'objectType_and_objectId_required' });
     }
-    if (objectType && objectType !== 'contact' && objectType !== 'deal') {
+    if ((objectType && !['contact', 'deal'].includes(objectType)) || (objectId && objectType && !objectId)) {
       return reply.code(400).send({ error: 'invalid_object_type' });
     }
 
@@ -110,9 +110,20 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
     if (objectType && objectId) {
       conditions.push(eq(tasks.objectType, objectType as 'contact' | 'deal'));
       conditions.push(eq(tasks.objectId, objectId));
+    } else if (objectType && !objectId) {
+      conditions.push(eq(tasks.objectType, objectType as 'contact' | 'deal'));
     }
     if (status === 'open' || status === 'done') {
       conditions.push(eq(tasks.status, status));
+    }
+    if (assignedToUserId) {
+      conditions.push(eq(tasks.assignedToUserId, assignedToUserId));
+    }
+    if (dueDateFrom) {
+      conditions.push(gte(tasks.dueAt, new Date(dueDateFrom)));
+    }
+    if (dueDateTo) {
+      conditions.push(lte(tasks.dueAt, new Date(dueDateTo)));
     }
 
     const rows = await app.db

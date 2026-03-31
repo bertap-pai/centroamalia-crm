@@ -69,12 +69,18 @@ export default function ContactsListPage() {
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
   const [showSaveView, setShowSaveView] = useState(false);
+  const [showFilterBar, setShowFilterBar] = useState(false);
 
   // Filter / sort / pagination state
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  // Advanced filters
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
+  const [propFilters, setPropFilters] = useState<Record<string, string>>({});
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -104,6 +110,11 @@ export default function ContactsListPage() {
     params.set('page', String(page));
     params.set('pageSize', String(pageSize));
     if (propColumns.length > 0) params.set('columns', propColumns.join(','));
+    if (createdFrom) params.set('createdFrom', createdFrom);
+    if (createdTo) params.set('createdTo', createdTo);
+    for (const [key, val] of Object.entries(propFilters)) {
+      if (val) params.set(`filter[${key}]`, val);
+    }
 
     api
       .get(`/api/contacts?${params}`)
@@ -122,13 +133,12 @@ export default function ContactsListPage() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedSearch, includeArchived, page, propColumns]);
+  }, [debouncedSearch, includeArchived, page, propColumns, createdFrom, createdTo, propFilters]);
 
   function applyView(view: SavedView) {
     setActiveViewId(view.id);
     if (view.config.columns) setPropColumns(view.config.columns);
     if (view.config.filters) {
-      // Apply basic search from filters if present
       const q = (view.config.filters as any)['q'];
       if (q) setSearch(q);
     }
@@ -160,6 +170,18 @@ export default function ContactsListPage() {
     if (activeViewId === id) setActiveViewId(null);
   }
 
+  function clearFilters() {
+    setCreatedFrom('');
+    setCreatedTo('');
+    setPropFilters({});
+    setPage(1);
+  }
+
+  const activeFilterCount = [
+    createdFrom || createdTo ? 1 : 0,
+    ...Object.values(propFilters).map((v) => (v ? 1 : 0)),
+  ].reduce((a, b) => a + b, 0);
+
   const displayName = (c: Contact) => {
     const n = [c.firstName, c.lastName].filter(Boolean).join(' ');
     return n || <span style={{ color: '#999' }}>Sense nom</span>;
@@ -179,6 +201,11 @@ export default function ContactsListPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Property defs suitable for filtering (exclude base fields, keep filterable types)
+  const filterablePropDefs = propertyDefs.filter(
+    (d) => !['first_name', 'last_name', 'email', 'phone_e164'].includes(d.key),
+  );
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -220,6 +247,19 @@ export default function ContactsListPage() {
             Incloure arxivats
           </label>
 
+          {/* Filter toggle */}
+          <button
+            onClick={() => setShowFilterBar(!showFilterBar)}
+            style={{
+              ...outlineBtn,
+              background: activeFilterCount > 0 ? '#eef2ff' : '#fff',
+              borderColor: activeFilterCount > 0 ? 'var(--color-primary)' : 'var(--color-border)',
+              color: activeFilterCount > 0 ? 'var(--color-primary)' : '#555',
+            }}
+          >
+            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} ▾
+          </button>
+
           {/* Column picker */}
           <div style={{ position: 'relative' }}>
             <button
@@ -243,6 +283,105 @@ export default function ContactsListPage() {
             Guardar vista
           </button>
         </div>
+
+        {/* Filter bar */}
+        {showFilterBar && (
+          <div
+            style={{
+              marginTop: 10, padding: '14px 16px', background: '#f9f9fb',
+              border: '1px solid var(--color-border)', borderRadius: 8,
+              display: 'flex', flexDirection: 'column', gap: 12,
+            }}
+          >
+            {/* Date range */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#555', minWidth: 90 }}>Data creació</span>
+              <input
+                type="date"
+                value={createdFrom}
+                onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
+                style={{ ...inputStyle, fontSize: 12 }}
+              />
+              <span style={{ fontSize: 12, color: '#888' }}>fins</span>
+              <input
+                type="date"
+                value={createdTo}
+                onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
+                style={{ ...inputStyle, fontSize: 12 }}
+              />
+            </div>
+
+            {/* Property filters */}
+            {filterablePropDefs.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                {filterablePropDefs.map((def) => (
+                  <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{def.label}</span>
+                    {def.type === 'select' || def.type === 'multiselect' ? (
+                      <select
+                        value={propFilters[def.key] ?? ''}
+                        onChange={(e) => {
+                          setPropFilters((prev) => {
+                            const next = { ...prev };
+                            if (e.target.value) next[def.key] = e.target.value;
+                            else delete next[def.key];
+                            return next;
+                          });
+                          setPage(1);
+                        }}
+                        style={{ ...inputStyle, fontSize: 12, minWidth: 140 }}
+                      >
+                        <option value="">Tots</option>
+                        {def.options?.map((o) => (
+                          <option key={o.key} value={o.key}>{o.label}</option>
+                        ))}
+                      </select>
+                    ) : def.type === 'date' || def.type === 'datetime' ? (
+                      <input
+                        type="date"
+                        value={propFilters[def.key] ?? ''}
+                        onChange={(e) => {
+                          setPropFilters((prev) => {
+                            const next = { ...prev };
+                            if (e.target.value) next[def.key] = e.target.value;
+                            else delete next[def.key];
+                            return next;
+                          });
+                          setPage(1);
+                        }}
+                        style={{ ...inputStyle, fontSize: 12 }}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={propFilters[def.key] ?? ''}
+                        placeholder={`Filtra per ${def.label.toLowerCase()}...`}
+                        onChange={(e) => {
+                          setPropFilters((prev) => {
+                            const next = { ...prev };
+                            if (e.target.value) next[def.key] = e.target.value;
+                            else delete next[def.key];
+                            return next;
+                          });
+                          setPage(1);
+                        }}
+                        style={{ ...inputStyle, fontSize: 12, minWidth: 160 }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeFilterCount > 0 && (
+              <div>
+                <button onClick={clearFilters} style={{ ...outlineBtn, fontSize: 12, padding: '4px 10px', color: '#e74c3c', borderColor: '#e74c3c' }}>
+                  Esborrar filtres
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Save view panel */}
         {showSaveView && (

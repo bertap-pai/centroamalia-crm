@@ -14,6 +14,11 @@ interface TaskRow {
   createdAt: string;
 }
 
+interface UserOption {
+  id: string;
+  name: string | null;
+}
+
 const fmtDate = (s: string | null) => {
   if (!s) return '';
   return new Intl.DateTimeFormat('ca-ES', {
@@ -26,16 +31,32 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'open' | 'done' | 'all'>('open');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserOption[]>([]);
 
-  function load(f: 'open' | 'done' | 'all') {
+  // Advanced filters
+  const [filterAssignee, setFilterAssignee] = useState('');
+  const [filterObjectType, setFilterObjectType] = useState('');
+  const [dueDateFrom, setDueDateFrom] = useState('');
+  const [dueDateTo, setDueDateTo] = useState('');
+
+  useEffect(() => {
+    api.get('/api/users').then(setUsers).catch(() => {});
+  }, []);
+
+  function load() {
     setLoading(true);
-    const qs = f !== 'all' ? `?status=${f}` : '';
-    api.get(`/api/tasks${qs}`)
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.set('status', filter);
+    if (filterAssignee) params.set('assignedToUserId', filterAssignee);
+    if (filterObjectType) params.set('objectType', filterObjectType);
+    if (dueDateFrom) params.set('dueDateFrom', dueDateFrom);
+    if (dueDateTo) params.set('dueDateTo', dueDateTo);
+    api.get(`/api/tasks?${params}`)
       .then((rows: TaskRow[]) => setTasks(rows))
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(filter); }, [filter]);
+  useEffect(() => { load(); }, [filter, filterAssignee, filterObjectType, dueDateFrom, dueDateTo]);
 
   async function toggleStatus(task: TaskRow) {
     if (updating) return;
@@ -58,9 +79,23 @@ export default function TasksPage() {
   const isOverdue = (task: TaskRow) =>
     task.status === 'open' && task.dueAt && new Date(task.dueAt) < new Date();
 
+  const activeFilterCount = [
+    filterAssignee ? 1 : 0,
+    filterObjectType ? 1 : 0,
+    dueDateFrom || dueDateTo ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+
+  function clearFilters() {
+    setFilterAssignee('');
+    setFilterObjectType('');
+    setDueDateFrom('');
+    setDueDateTo('');
+  }
+
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 860 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div style={{ padding: '28px 32px', maxWidth: 960 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Tasques</h1>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['open', 'done', 'all'] as const).map((f) => (
@@ -79,6 +114,79 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Filter bar */}
+      <div
+        style={{
+          marginBottom: 16, padding: '12px 16px', background: '#f9f9fb',
+          border: '1px solid var(--color-border)', borderRadius: 8,
+          display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end',
+        }}
+      >
+        {/* Assignee */}
+        {users.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={labelStyle}>Assignat a</span>
+            <select
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">Tots</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Object type */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={labelStyle}>Tipus</span>
+          <select
+            value={filterObjectType}
+            onChange={(e) => setFilterObjectType(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="">Tots</option>
+            <option value="contact">Contacte</option>
+            <option value="deal">Deal</option>
+          </select>
+        </div>
+
+        {/* Due date range */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={labelStyle}>Venciment des de</span>
+          <input
+            type="date"
+            value={dueDateFrom}
+            onChange={(e) => setDueDateFrom(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={labelStyle}>Venciment fins a</span>
+          <input
+            type="date"
+            value={dueDateTo}
+            onChange={(e) => setDueDateTo(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {activeFilterCount > 0 && (
+          <button
+            onClick={clearFilters}
+            style={{
+              fontSize: 12, padding: '6px 10px', cursor: 'pointer',
+              color: '#e74c3c', border: '1px solid #e74c3c', background: '#fff',
+              borderRadius: 5, alignSelf: 'flex-end',
+            }}
+          >
+            Esborrar filtres
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -138,3 +246,17 @@ export default function TasksPage() {
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11, color: '#888', fontWeight: 600,
+};
+
+const selectStyle: React.CSSProperties = {
+  padding: '6px 10px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none', minWidth: 140,
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '6px 10px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
+};

@@ -6,6 +6,8 @@ import {
   ilike,
   isNull,
   isNotNull,
+  gte,
+  lte,
   desc,
   asc,
   count,
@@ -41,6 +43,8 @@ export default async function dealsRoutes(app: FastifyInstance) {
       const filterPipelineId = q['pipelineId'];
       const filterStageId = q['stageId'];
       const filterOwnerUserId = q['ownerUserId'];
+      const createdFrom = q['createdFrom'];
+      const createdTo = q['createdTo'];
 
       const propFilters: Record<string, string> = {};
       for (const [k, v] of Object.entries(q)) {
@@ -53,6 +57,8 @@ export default async function dealsRoutes(app: FastifyInstance) {
       if (filterPipelineId) conditions.push(eq(deals.pipelineId, filterPipelineId));
       if (filterStageId) conditions.push(eq(deals.stageId, filterStageId));
       if (filterOwnerUserId) conditions.push(eq(deals.ownerUserId, filterOwnerUserId));
+      if (createdFrom) conditions.push(gte(deals.createdAt, new Date(createdFrom)));
+      if (createdTo) conditions.push(lte(deals.createdAt, new Date(createdTo)));
 
       if (search) {
         const like = `%${search}%`;
