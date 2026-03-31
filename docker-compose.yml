@@ -44,10 +44,10 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
-    environment:
-      VITE_API_URL: http://localhost:3000
+    depends_on:
+      - api
     ports:
-      - '5173:5173'
+      - '5173:80'
 
   pg-backup:
     image: postgres:16
