@@ -12,6 +12,7 @@ import AdminPipelinesPage from './pages/AdminPipelinesPage.js';
 import AdminUsersPage from './pages/AdminUsersPage.js';
 import AdminImportPage from './pages/AdminImportPage.js';
 import AdminExportPage from './pages/AdminExportPage.js';
+import TasksPage from './pages/TasksPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ContactDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <TasksPage />
               </ProtectedRoute>
             }
           />

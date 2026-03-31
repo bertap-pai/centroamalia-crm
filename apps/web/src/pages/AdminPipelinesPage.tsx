@@ -135,6 +135,26 @@ export default function AdminPipelinesPage() {
     }
   }
 
+  // ── Move stage up/down ───────────────────────────────────────────────────
+
+  async function handleMoveStage(pipeline: Pipeline, stageId: string, dir: 'up' | 'down') {
+    const sorted = [...pipeline.stages].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+    const idx = sorted.findIndex((s) => s.id === stageId);
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx]!;
+    const b = sorted[swapIdx]!;
+    try {
+      await Promise.all([
+        api.patch(`/api/pipelines/${pipeline.id}/stages/${a.id}`, { position: b.position }),
+        api.patch(`/api/pipelines/${pipeline.id}/stages/${b.id}`, { position: a.position }),
+      ]);
+      load();
+    } catch {
+      setError('Error reordenant les etapes.');
+    }
+  }
+
   // ── Update stage ─────────────────────────────────────────────────────────
 
   async function handleSaveStage(pipelineId: string, stageId: string) {
@@ -276,7 +296,7 @@ export default function AdminPipelinesPage() {
               <div style={{ color: '#bbb', fontSize: 13, marginBottom: 8 }}>Sense etapes</div>
             )}
 
-            {pipeline.stages.map((stage) => (
+            {[...pipeline.stages].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).map((stage, idx, sorted) => (
               <div key={stage.id} style={stageRowStyle}>
                 {editingStageId === stage.id ? (
                   <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -308,10 +328,23 @@ export default function AdminPipelinesPage() {
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <button
+                          onClick={() => handleMoveStage(pipeline, stage.id, 'up')}
+                          disabled={idx === 0}
+                          style={{ ...arrowBtn, opacity: idx === 0 ? 0.2 : 1 }}
+                          title="Moure amunt"
+                        >▲</button>
+                        <button
+                          onClick={() => handleMoveStage(pipeline, stage.id, 'down')}
+                          disabled={idx === sorted.length - 1}
+                          style={{ ...arrowBtn, opacity: idx === sorted.length - 1 ? 0.2 : 1 }}
+                          title="Moure avall"
+                        >▼</button>
+                      </div>
                       <span style={{ fontSize: 13 }}>{stage.name}</span>
                       {stage.isClosedWon && <span style={badge('green')}>Guanyat</span>}
                       {stage.isClosedLost && <span style={badge('red')}>Perdut</span>}
-                      <span style={{ fontSize: 11, color: '#bbb' }}>pos {stage.position}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
@@ -474,6 +507,16 @@ const checkLabel: React.CSSProperties = {
   color: '#555',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+};
+
+const arrowBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '1px 4px',
+  fontSize: 9,
+  color: '#888',
+  lineHeight: 1,
 };
 
 function badge(color: 'green' | 'red'): React.CSSProperties {

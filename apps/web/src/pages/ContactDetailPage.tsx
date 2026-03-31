@@ -184,9 +184,20 @@ export default function ContactDetailPage() {
   const allGroupKeys = PROP_GROUPS.flatMap((g) => g.keys);
 
   // Other properties not in any group or core
-  const otherKeys = Object.keys(contact.properties).filter(
+  // When editing, include all propDefs for this scope even if they have no value yet
+  const otherKeysBase = Object.keys(contact.properties).filter(
     (k) => !CORE_KEYS.includes(k) && !allGroupKeys.includes(k),
   );
+  const otherKeys = editing
+    ? [
+        ...new Set([
+          ...otherKeysBase,
+          ...propDefs
+            .filter((d) => !CORE_KEYS.includes(d.key) && !allGroupKeys.includes(d.key))
+            .map((d) => d.key),
+        ]),
+      ]
+    : otherKeysBase;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 24px' }}>
@@ -348,12 +359,34 @@ export default function ContactDetailPage() {
             {otherKeys.map((key) => {
               const def = defFor(key);
               const val = contact.properties[key] ?? '';
+              if (!val && !editing) return null;
               return (
                 <div key={key}>
                   <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                     {def?.label ?? key}
+                    {def?.isSensitive && <span style={{ marginLeft: 4, color: '#e74c3c' }}>🔒</span>}
                   </div>
-                  <div style={{ fontSize: 13 }}>{displayVal(key, val) || '—'}</div>
+                  {editing && def && (def.type === 'text' || def.type === 'textarea' || def.type === 'datetime' || def.type === 'date' || def.type === 'number') ? (
+                    <EditField
+                      label=""
+                      value={editForm[key] ?? ''}
+                      onChange={(v) => setEditForm({ ...editForm, [key]: v })}
+                      multiline={def.type === 'textarea'}
+                    />
+                  ) : editing && def?.type === 'select' && def.options ? (
+                    <select
+                      value={editForm[key] ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                      style={{ ...inputStyle, width: '100%' }}
+                    >
+                      <option value="">— Selecciona —</option>
+                      {def.options.map((o) => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ fontSize: 13 }}>{displayVal(key, val) || '—'}</div>
+                  )}
                 </div>
               );
             })}

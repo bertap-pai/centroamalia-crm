@@ -313,6 +313,9 @@ export default function AdminPropertiesPage() {
                 placeholder="p.ex. 010, 020..."
                 style={{ ...inputStyle, width: '100%' }}
               />
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                Determina l'ordre en què apareix el camp dins la seva secció. Valors més petits apareixen primer (010 abans que 020).
+              </div>
             </Field>
 
             <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, and, isNull, desc, inArray } from 'drizzle-orm';
-import { notes, tasks, users } from '@crm/db';
+import { notes, tasks, users, contacts, deals } from '@crm/db';
 
 export default async function notesTasksRoutes(app: FastifyInstance) {
   // ─── Notes ──────────────────────────────────────────────────────────────────
@@ -93,27 +93,32 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
 
   // ─── Tasks ──────────────────────────────────────────────────────────────────
 
-  // List tasks for an object
+  // List tasks — filtered by object when objectType+objectId provided, or all tasks otherwise
   app.get('/api/tasks', { preHandler: app.requireAuth }, async (req, reply) => {
     const q = req.query as Record<string, string>;
-    const { objectType, objectId } = q;
-    if (!objectType || !objectId) {
+    const { objectType, objectId, status } = q;
+
+    // If filtering by object, both params are required
+    if ((objectType && !objectId) || (!objectType && objectId)) {
       return reply.code(400).send({ error: 'objectType_and_objectId_required' });
     }
-    if (objectType !== 'contact' && objectType !== 'deal') {
+    if (objectType && objectType !== 'contact' && objectType !== 'deal') {
       return reply.code(400).send({ error: 'invalid_object_type' });
+    }
+
+    const conditions = [isNull(tasks.archivedAt)];
+    if (objectType && objectId) {
+      conditions.push(eq(tasks.objectType, objectType as 'contact' | 'deal'));
+      conditions.push(eq(tasks.objectId, objectId));
+    }
+    if (status === 'open' || status === 'done') {
+      conditions.push(eq(tasks.status, status));
     }
 
     const rows = await app.db
       .select()
       .from(tasks)
-      .where(
-        and(
-          eq(tasks.objectType, objectType),
-          eq(tasks.objectId, objectId),
-          isNull(tasks.archivedAt),
-        ),
-      )
+      .where(and(...conditions))
       .orderBy(desc(tasks.createdAt));
 
     // Attach assignee names
@@ -127,9 +132,36 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
       for (const a of assigneeRows) assigneeMap[a.id] = a.name ?? a.id;
     }
 
+    // When returning all tasks, also resolve object display names
+    let objectNames: Record<string, string> = {};
+    if (!objectType) {
+      const contactIds = [...new Set(rows.filter((r) => r.objectType === 'contact').map((r) => r.objectId))];
+      const dealIds = [...new Set(rows.filter((r) => r.objectType === 'deal').map((r) => r.objectId))];
+
+      if (contactIds.length > 0) {
+        const contactRows = await app.db
+          .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, phoneE164: contacts.phoneE164 })
+          .from(contacts)
+          .where(inArray(contacts.id, contactIds));
+        for (const c of contactRows) {
+          objectNames[c.id] = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.phoneE164 || c.id;
+        }
+      }
+      if (dealIds.length > 0) {
+        const dealRows = await app.db
+          .select({ id: deals.id })
+          .from(deals)
+          .where(inArray(deals.id, dealIds));
+        for (const d of dealRows) {
+          objectNames[d.id] = objectNames[d.id] ?? d.id;
+        }
+      }
+    }
+
     return rows.map((t) => ({
       ...t,
       assigneeName: t.assignedToUserId ? (assigneeMap[t.assignedToUserId] ?? null) : null,
+      objectName: objectNames[t.objectId] ?? null,
     }));
   });
 
