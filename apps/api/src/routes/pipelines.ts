@@ -190,6 +190,7 @@ export default async function pipelinesRoutes(app: FastifyInstance) {
         position?: number;
         isClosedWon?: boolean;
         isClosedLost?: boolean;
+        requiredFields?: string[];
       };
 
       const [existing] = await app.db
@@ -206,6 +207,7 @@ export default async function pipelinesRoutes(app: FastifyInstance) {
       if (body.position !== undefined) updates.position = body.position;
       if (body.isClosedWon !== undefined) updates.isClosedWon = body.isClosedWon;
       if (body.isClosedLost !== undefined) updates.isClosedLost = body.isClosedLost;
+      if (body.requiredFields !== undefined) updates.requiredFields = body.requiredFields;
 
       const [updated] = await app.db
         .update(stages)
