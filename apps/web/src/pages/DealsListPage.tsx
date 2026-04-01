@@ -95,7 +95,7 @@ export default function DealsListPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [propertyDefs, setPropertyDefs] = useState<PropertyDef[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
 
   // Saved views
@@ -154,7 +154,7 @@ export default function DealsListPage() {
       setSavedViews(views ?? []);
       if (ps.length > 0) {
         setSelectedPipelineId(ps[0].id);
-        setViewMode(ps[0].defaultView ?? 'list');
+        setViewMode(ps[0].defaultView ?? 'kanban');
       }
     }).catch(() => {});
   }, []);
