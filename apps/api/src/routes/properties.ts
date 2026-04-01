@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { inArray, asc, eq } from 'drizzle-orm';
-import { propertyDefinitions } from '@crm/db';
+import { inArray, asc, eq, sql } from 'drizzle-orm';
+import { propertyDefinitions, formFields } from '@crm/db';
 
 export default async function propertiesRoutes(app: FastifyInstance) {
   // GET /api/properties?scope=contact|deal|both|all
@@ -144,6 +144,29 @@ export default async function propertiesRoutes(app: FastifyInstance) {
         where: eq(propertyDefinitions.id, id),
       });
       if (!existing) return reply.status(404).send({ error: 'Not found' });
+
+      // Guard: check pipeline stage required_fields
+      const stageRefs = await app.db.execute<{ id: string; name: string }>(
+        sql`SELECT id, name FROM pipeline_stages
+            WHERE required_fields @> ${JSON.stringify([existing.key])}::jsonb`,
+      );
+
+      // Guard: check form fields
+      const formRefs = await app.db
+        .select({ id: formFields.id, label: formFields.label })
+        .from(formFields)
+        .where(eq(formFields.crmPropertyKey, existing.key));
+
+      const usedIn: string[] = [
+        ...stageRefs.rows.map((r) => `pipeline stage "${r.name}"`),
+        ...formRefs.map((r) => `form field "${r.label ?? r.id}"`),
+      ];
+
+      if (usedIn.length > 0) {
+        return reply.status(409).send({
+          error: `Cannot delete property "${existing.key}" because it is in use: ${usedIn.join(', ')}.`,
+        });
+      }
 
       await app.db.delete(propertyDefinitions).where(eq(propertyDefinitions.id, id));
 
