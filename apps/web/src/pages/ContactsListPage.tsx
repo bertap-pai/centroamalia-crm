@@ -288,35 +288,37 @@ export default function ContactsListPage() {
         {showFilterBar && (
           <div
             style={{
-              marginTop: 10, padding: '14px 16px', background: '#f9f9fb',
+              marginTop: 10, padding: '16px 20px', background: '#f9f9fb',
               border: '1px solid var(--color-border)', borderRadius: 8,
-              display: 'flex', flexDirection: 'column', gap: 12,
+              display: 'flex', flexDirection: 'column', gap: 14,
             }}
           >
-            {/* Date range */}
+            {/* Date range — full-width row */}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#555', minWidth: 90 }}>Data creació</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Data creació</span>
               <input
                 type="date"
                 value={createdFrom}
                 onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
-                style={{ ...inputStyle, fontSize: 12 }}
+                style={{ ...inputStyle, fontSize: 13, padding: '6px 8px' }}
               />
               <span style={{ fontSize: 12, color: '#888' }}>fins</span>
               <input
                 type="date"
                 value={createdTo}
                 onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
-                style={{ ...inputStyle, fontSize: 12 }}
+                style={{ ...inputStyle, fontSize: 13, padding: '6px 8px' }}
               />
             </div>
 
             {/* Property filters */}
             {filterablePropDefs.length > 0 && (
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 16px', alignItems: 'end' }}>
                 {filterablePropDefs.map((def) => (
-                  <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{def.label}</span>
+                  <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {def.label}
+                    </label>
                     {def.type === 'select' || def.type === 'multiselect' ? (
                       <select
                         value={propFilters[def.key] ?? ''}
@@ -329,7 +331,7 @@ export default function ContactsListPage() {
                           });
                           setPage(1);
                         }}
-                        style={{ ...inputStyle, fontSize: 12, minWidth: 140 }}
+                        style={{ ...inputStyle, width: '100%', fontSize: 13, padding: '6px 8px' }}
                       >
                         <option value="">Tots</option>
                         {def.options?.map((o) => (
@@ -349,7 +351,7 @@ export default function ContactsListPage() {
                           });
                           setPage(1);
                         }}
-                        style={{ ...inputStyle, fontSize: 12 }}
+                        style={{ ...inputStyle, width: '100%', fontSize: 13, padding: '6px 8px' }}
                       />
                     ) : (
                       <input
@@ -365,7 +367,7 @@ export default function ContactsListPage() {
                           });
                           setPage(1);
                         }}
-                        style={{ ...inputStyle, fontSize: 12, minWidth: 160 }}
+                        style={{ ...inputStyle, width: '100%', fontSize: 13, padding: '6px 8px' }}
                       />
                     )}
                   </div>
@@ -374,7 +376,7 @@ export default function ContactsListPage() {
             )}
 
             {activeFilterCount > 0 && (
-              <div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button onClick={clearFilters} style={{ ...outlineBtn, fontSize: 12, padding: '4px 10px', color: '#e74c3c', borderColor: '#e74c3c' }}>
                   Esborrar filtres
                 </button>

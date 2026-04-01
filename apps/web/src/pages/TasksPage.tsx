@@ -119,14 +119,15 @@ export default function TasksPage() {
       {/* Filter bar */}
       <div
         style={{
-          marginBottom: 16, padding: '12px 16px', background: '#f9f9fb',
+          marginBottom: 16, padding: '16px 20px', background: '#f9f9fb',
           border: '1px solid var(--color-border)', borderRadius: 8,
-          display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: '10px 16px', alignItems: 'end',
         }}
       >
         {/* Assignee */}
         {users.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={labelStyle}>Assignat a</span>
             <select
               value={filterAssignee}
@@ -142,7 +143,7 @@ export default function TasksPage() {
         )}
 
         {/* Object type */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={labelStyle}>Tipus</span>
           <select
             value={filterObjectType}
@@ -156,7 +157,7 @@ export default function TasksPage() {
         </div>
 
         {/* Due date range */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={labelStyle}>Venciment des de</span>
           <input
             type="date"
@@ -165,7 +166,7 @@ export default function TasksPage() {
             style={inputStyle}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={labelStyle}>Venciment fins a</span>
           <input
             type="date"
@@ -176,16 +177,18 @@ export default function TasksPage() {
         </div>
 
         {activeFilterCount > 0 && (
-          <button
-            onClick={clearFilters}
-            style={{
-              fontSize: 12, padding: '6px 10px', cursor: 'pointer',
-              color: '#e74c3c', border: '1px solid #e74c3c', background: '#fff',
-              borderRadius: 5, alignSelf: 'flex-end',
-            }}
-          >
-            Esborrar filtres
-          </button>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={clearFilters}
+              style={{
+                fontSize: 12, padding: '6px 10px', cursor: 'pointer',
+                color: '#e74c3c', border: '1px solid #e74c3c', background: '#fff',
+                borderRadius: 5,
+              }}
+            >
+              Esborrar filtres
+            </button>
+          </div>
         )}
       </div>
 
@@ -248,15 +251,15 @@ export default function TasksPage() {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, color: '#888', fontWeight: 600,
+  fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em',
 };
 
 const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid var(--color-border)',
-  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none', minWidth: 140,
+  width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid var(--color-border)',
-  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
+  width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };

@@ -568,15 +568,34 @@ export default function DealsListPage() {
       {showFilterBar && viewMode === 'list' && (
         <div
           style={{
-            padding: '14px 24px', borderBottom: '1px solid var(--color-border)',
-            background: '#f9f9fb', display: 'flex', flexDirection: 'column', gap: 12,
+            padding: '16px 20px', borderBottom: '1px solid var(--color-border)',
+            background: '#f9f9fb', display: 'flex', flexDirection: 'column', gap: 14,
           }}
         >
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {/* Date range — full-width row */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Data creació</span>
+            <input
+              type="date"
+              value={createdFrom}
+              onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 12, color: '#888' }}>–</span>
+            <input
+              type="date"
+              value={createdTo}
+              onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Stage, owner, and property filters — grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 16px', alignItems: 'end' }}>
             {/* Stage filter */}
             {currentPipeline && currentPipeline.stages.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Etapa</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Etapa</label>
                 <select
                   value={filterStageId}
                   onChange={(e) => { setFilterStageId(e.target.value); setPage(1); }}
@@ -592,8 +611,8 @@ export default function DealsListPage() {
 
             {/* Owner filter */}
             {users.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Responsable</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Responsable</label>
                 <select
                   value={filterOwnerUserId}
                   onChange={(e) => { setFilterOwnerUserId(e.target.value); setPage(1); }}
@@ -607,91 +626,67 @@ export default function DealsListPage() {
               </div>
             )}
 
-            {/* Date range */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>Data creació</span>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  type="date"
-                  value={createdFrom}
-                  onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
-                  style={inputStyle}
-                />
-                <span style={{ fontSize: 12, color: '#888' }}>–</span>
-                <input
-                  type="date"
-                  value={createdTo}
-                  onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
-                  style={inputStyle}
-                />
+            {/* Property filters */}
+            {dealPropDefs.map((def) => (
+              <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{def.label}</label>
+                {def.type === 'select' || def.type === 'multiselect' ? (
+                  <select
+                    value={propFilters[def.key] ?? ''}
+                    onChange={(e) => {
+                      setPropFilters((prev) => {
+                        const next = { ...prev };
+                        if (e.target.value) next[def.key] = e.target.value;
+                        else delete next[def.key];
+                        return next;
+                      });
+                      setPage(1);
+                    }}
+                    style={selectStyle}
+                  >
+                    <option value="">Tots</option>
+                    {def.options?.map((o) => (
+                      <option key={o.key} value={o.key}>{o.label}</option>
+                    ))}
+                  </select>
+                ) : def.type === 'date' || def.type === 'datetime' ? (
+                  <input
+                    type="date"
+                    value={propFilters[def.key] ?? ''}
+                    onChange={(e) => {
+                      setPropFilters((prev) => {
+                        const next = { ...prev };
+                        if (e.target.value) next[def.key] = e.target.value;
+                        else delete next[def.key];
+                        return next;
+                      });
+                      setPage(1);
+                    }}
+                    style={inputStyle}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={propFilters[def.key] ?? ''}
+                    placeholder={`Filtra per ${def.label.toLowerCase()}...`}
+                    onChange={(e) => {
+                      setPropFilters((prev) => {
+                        const next = { ...prev };
+                        if (e.target.value) next[def.key] = e.target.value;
+                        else delete next[def.key];
+                        return next;
+                      });
+                      setPage(1);
+                    }}
+                    style={inputStyle}
+                  />
+                )}
               </div>
-            </div>
+            ))}
           </div>
 
-          {/* Property filters */}
-          {dealPropDefs.length > 0 && (
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              {dealPropDefs.map((def) => (
-                <div key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{def.label}</span>
-                  {def.type === 'select' || def.type === 'multiselect' ? (
-                    <select
-                      value={propFilters[def.key] ?? ''}
-                      onChange={(e) => {
-                        setPropFilters((prev) => {
-                          const next = { ...prev };
-                          if (e.target.value) next[def.key] = e.target.value;
-                          else delete next[def.key];
-                          return next;
-                        });
-                        setPage(1);
-                      }}
-                      style={selectStyle}
-                    >
-                      <option value="">Tots</option>
-                      {def.options?.map((o) => (
-                        <option key={o.key} value={o.key}>{o.label}</option>
-                      ))}
-                    </select>
-                  ) : def.type === 'date' || def.type === 'datetime' ? (
-                    <input
-                      type="date"
-                      value={propFilters[def.key] ?? ''}
-                      onChange={(e) => {
-                        setPropFilters((prev) => {
-                          const next = { ...prev };
-                          if (e.target.value) next[def.key] = e.target.value;
-                          else delete next[def.key];
-                          return next;
-                        });
-                        setPage(1);
-                      }}
-                      style={inputStyle}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={propFilters[def.key] ?? ''}
-                      placeholder={`Filtra per ${def.label.toLowerCase()}...`}
-                      onChange={(e) => {
-                        setPropFilters((prev) => {
-                          const next = { ...prev };
-                          if (e.target.value) next[def.key] = e.target.value;
-                          else delete next[def.key];
-                          return next;
-                        });
-                        setPage(1);
-                      }}
-                      style={{ ...inputStyle, minWidth: 160 }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
           {activeFilterCount > 0 && (
-            <div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={clearFilters}
                 style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', color: '#e74c3c', borderColor: '#e74c3c', background: '#fff', border: '1px solid', borderRadius: 5 }}
@@ -1060,11 +1055,11 @@ const pageBtn: React.CSSProperties = {
 };
 
 const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid var(--color-border)',
-  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none', minWidth: 150,
+  width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid var(--color-border)',
-  borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
+  width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)',
+  borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };
