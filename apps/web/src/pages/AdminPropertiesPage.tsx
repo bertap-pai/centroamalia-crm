@@ -55,6 +55,7 @@ export default function AdminPropertiesPage() {
 
   // Confirm delete
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showManageGroups, setShowManageGroups] = useState(false);
 
   function load() {
     setLoading(true);
@@ -165,6 +166,12 @@ export default function AdminPropertiesPage() {
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Propietats dinàmiques</h1>
         <span style={{ color: '#999', fontSize: 13 }}>{defs.length} definicions</span>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={() => setShowManageGroups(true)}
+          style={outlineBtn}
+        >
+          Gestionar grups
+        </button>
         <button onClick={startCreate} style={primaryBtn}>+ Nova propietat</button>
       </div>
 
@@ -396,6 +403,14 @@ export default function AdminPropertiesPage() {
           </form>
         </Modal>
       )}
+
+      {showManageGroups && (
+        <GroupManageModal
+          groups={distinctGroups}
+          onClose={() => setShowManageGroups(false)}
+          onChanged={() => { load(); }}
+        />
+      )}
     </div>
   );
 }
@@ -599,3 +614,122 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   borderBottom: active ? '2px solid var(--color-primary)' : '2px solid transparent',
   fontFamily: 'inherit',
 });
+
+// ─── Group Management Modal ────────────────────────────────────────────────────
+
+function GroupManageModal({
+  groups,
+  onClose,
+  onChanged,
+}: {
+  groups: string[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleRename(from: string) {
+    if (!newName.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.patch('/api/property-groups/rename', { from, to: newName.trim() });
+      setRenamingGroup(null);
+      setNewName('');
+      onChanged();
+    } catch (e: any) {
+      setError(e.message ?? 'Error en canviar el nom.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(name: string) {
+    if (!window.confirm(`Eliminar el grup "${name}"? Totes les propietats d'aquest grup quedaran sense grup.`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.delete(`/api/property-groups/${encodeURIComponent(name)}`);
+      onChanged();
+    } catch (e: any) {
+      setError(e.message ?? 'Error en eliminar el grup.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Gestionar grups" onClose={onClose}>
+      {groups.length === 0 ? (
+        <p style={{ fontSize: 13, color: '#999' }}>No hi ha grups definits.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border)', fontWeight: 600, color: '#555', fontSize: 11 }}>Nom del grup</th>
+              <th style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border)' }} />
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => (
+              <tr key={g} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                <td style={{ padding: '8px 8px' }}>
+                  {renamingGroup === g ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleRename(g); if (e.key === 'Escape') { setRenamingGroup(null); setNewName(''); } }}
+                        style={{ ...inputStyle, width: 180 }}
+                      />
+                      <button
+                        onClick={() => handleRename(g)}
+                        disabled={busy || !newName.trim()}
+                        style={{ ...smallBtn, color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
+                      >
+                        Guardar
+                      </button>
+                      <button onClick={() => { setRenamingGroup(null); setNewName(''); }} style={smallBtn}>
+                        Cancel·lar
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontWeight: 500 }}>{g}</span>
+                  )}
+                </td>
+                <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                  {renamingGroup !== g && (
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => { setRenamingGroup(g); setNewName(g); }}
+                        style={smallBtn}
+                        disabled={busy}
+                      >
+                        Reanomenar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(g)}
+                        style={{ ...smallBtn, color: '#e74c3c', borderColor: '#e74c3c' }}
+                        disabled={busy}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {error && <div style={{ color: '#e74c3c', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        <button onClick={onClose} style={outlineBtn}>Tancar</button>
+      </div>
+    </Modal>
+  );
+}

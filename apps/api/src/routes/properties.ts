@@ -185,4 +185,52 @@ export default async function propertiesRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     },
   );
+
+  // PATCH /api/property-groups/rename — admin only
+  // body: { from: string, to: string }
+  app.patch(
+    '/api/property-groups/rename',
+    { preHandler: app.requireAdmin },
+    async (req, reply) => {
+      const body = req.body as { from?: string; to?: string };
+      if (!body.from || !body.to) {
+        return reply.status(400).send({ error: 'from and to are required' });
+      }
+      const { from: fromName, to: toName } = body;
+      await app.db
+        .update(propertyDefinitions)
+        .set({ group: toName, updatedAt: new Date() })
+        .where(eq(propertyDefinitions.group, fromName));
+      await app.audit({
+        userId: req.user!.id,
+        action: 'update',
+        objectType: 'property_group',
+        objectId: fromName,
+        diff: { before: { group: fromName }, after: { group: toName } },
+      });
+      return { ok: true };
+    },
+  );
+
+  // DELETE /api/property-groups/:name — admin only
+  // Clears group = null on all matching properties
+  app.delete(
+    '/api/property-groups/:name',
+    { preHandler: app.requireAdmin },
+    async (req, reply) => {
+      const { name } = req.params as { name: string };
+      await app.db
+        .update(propertyDefinitions)
+        .set({ group: null, updatedAt: new Date() })
+        .where(eq(propertyDefinitions.group, name));
+      await app.audit({
+        userId: req.user!.id,
+        action: 'delete',
+        objectType: 'property_group',
+        objectId: name,
+        diff: { before: { group: name }, after: { group: null } },
+      });
+      return reply.status(204).send();
+    },
+  );
 }
