@@ -59,7 +59,13 @@ interface SavedView {
   createdByUserId: string | null;
   config: {
     columns?: string[];
-    filters?: Record<string, string>;
+    filters?: {
+      stageId?: string;
+      ownerUserId?: string;
+      createdFrom?: string;
+      createdTo?: string;
+      propFilters?: Record<string, string>;
+    };
     sort?: string;
     sortDir?: 'asc' | 'desc';
     viewMode?: 'list' | 'kanban';
@@ -213,24 +219,37 @@ export default function DealsListPage() {
   }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, propColumns,
       filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters, sortField, sortDir]);
 
+  function buildKanbanParams() {
+    const params = new URLSearchParams({ pipelineId: selectedPipelineId });
+    if (includeArchived) params.set('includeArchived', 'true');
+    if (filterOwnerUserId) params.set('ownerUserId', filterOwnerUserId);
+    if (createdFrom) params.set('createdFrom', createdFrom);
+    if (createdTo) params.set('createdTo', createdTo);
+    for (const [key, val] of Object.entries(propFilters)) {
+      if (val) params.set(`filter[${key}]`, val);
+    }
+    return params.toString();
+  }
+
+  function refreshKanban() {
+    if (!selectedPipelineId) return;
+    api.get(`/api/deals/kanban?${buildKanbanParams()}`)
+      .then(setKanbanData)
+      .catch(() => {});
+  }
+
   // Fetch kanban
   useEffect(() => {
     if (viewMode !== 'kanban' || !selectedPipelineId) return;
     setKanbanLoading(true);
-    api.get(`/api/deals/kanban?pipelineId=${selectedPipelineId}${includeArchived ? '&includeArchived=true' : ''}`)
+    api.get(`/api/deals/kanban?${buildKanbanParams()}`)
       .then((res) => {
         setKanbanData(res);
         setKanbanLoading(false);
       })
       .catch(() => setKanbanLoading(false));
-  }, [viewMode, selectedPipelineId, includeArchived]);
-
-  function refreshKanban() {
-    if (!selectedPipelineId) return;
-    api.get(`/api/deals/kanban?pipelineId=${selectedPipelineId}${includeArchived ? '&includeArchived=true' : ''}`)
-      .then(setKanbanData)
-      .catch(() => {});
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, selectedPipelineId, includeArchived, filterOwnerUserId, createdFrom, createdTo, propFilters]);
 
   // Drag & drop handlers
   function handleDragStart(dealId: string) {
@@ -274,6 +293,14 @@ export default function DealsListPage() {
     if (view.config.sort) setSortField(view.config.sort);
     if (view.config.sortDir) setSortDir(view.config.sortDir);
     if (view.config.viewMode) setViewMode(view.config.viewMode);
+    if (view.config.filters) {
+      const f = view.config.filters;
+      setFilterStageId(f.stageId ?? '');
+      setFilterOwnerUserId(f.ownerUserId ?? '');
+      setCreatedFrom(f.createdFrom ?? '');
+      setCreatedTo(f.createdTo ?? '');
+      setPropFilters(f.propFilters ?? {});
+    }
     setPage(1);
   }
 
@@ -284,7 +311,19 @@ export default function DealsListPage() {
       const view = await api.post('/api/saved-views', {
         name: viewName.trim(),
         objectType: 'deal',
-        config: { columns: propColumns, sort: sortField, sortDir, viewMode },
+        config: {
+          columns: propColumns,
+          sort: sortField,
+          sortDir,
+          viewMode,
+          filters: {
+            stageId: filterStageId,
+            ownerUserId: filterOwnerUserId,
+            createdFrom,
+            createdTo,
+            propFilters,
+          },
+        },
         isTeam,
       });
       setSavedViews((prev) => [...prev, view]);
@@ -430,20 +469,18 @@ export default function DealsListPage() {
         </label>
 
         {/* Filter toggle */}
-        {viewMode === 'list' && (
-          <button
-            onClick={() => setShowFilterBar(!showFilterBar)}
-            style={{
-              background: activeFilterCount > 0 ? '#eef2ff' : '#fff',
-              borderColor: activeFilterCount > 0 ? 'var(--color-primary)' : 'var(--color-border)',
-              color: activeFilterCount > 0 ? 'var(--color-primary)' : '#555',
-              border: '1px solid',
-              padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-            }}
-          >
-            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} ▾
-          </button>
-        )}
+        <button
+          onClick={() => setShowFilterBar(!showFilterBar)}
+          style={{
+            background: activeFilterCount > 0 ? '#eef2ff' : '#fff',
+            borderColor: activeFilterCount > 0 ? 'var(--color-primary)' : 'var(--color-border)',
+            color: activeFilterCount > 0 ? 'var(--color-primary)' : '#555',
+            border: '1px solid',
+            padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+          }}
+        >
+          Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} ▾
+        </button>
 
         {viewMode === 'list' && (
           <div style={{ position: 'relative', marginLeft: 'auto' }}>
@@ -487,54 +524,52 @@ export default function DealsListPage() {
         )}
 
         {/* Save view button */}
-        {viewMode === 'list' && (
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowSaveView((v) => !v)}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowSaveView((v) => !v)}
+            style={{
+              background: '#fff', border: '1px solid var(--color-border)',
+              padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#555',
+            }}
+          >
+            Guardar vista
+          </button>
+          {showSaveView && (
+            <div
               style={{
-                background: '#fff', border: '1px solid var(--color-border)',
-                padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#555',
+                position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff',
+                border: '1px solid var(--color-border)', borderRadius: 8, zIndex: 20,
+                padding: 12, minWidth: 240, boxShadow: 'var(--shadow-md)',
               }}
             >
-              Guardar vista
-            </button>
-            {showSaveView && (
-              <div
-                style={{
-                  position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff',
-                  border: '1px solid var(--color-border)', borderRadius: 8, zIndex: 20,
-                  padding: 12, minWidth: 240, boxShadow: 'var(--shadow-md)',
-                }}
-              >
-                <input
-                  autoFocus
-                  value={viewName}
-                  onChange={(e) => setViewName(e.target.value)}
-                  placeholder="Nom de la vista..."
-                  style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: 5, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }}
-                />
-                <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={viewName}
+                onChange={(e) => setViewName(e.target.value)}
+                placeholder="Nom de la vista..."
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: 5, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => handleSaveView(false)}
+                  disabled={savingView || !viewName.trim()}
+                  style={{ flex: 1, background: 'var(--color-primary)', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
+                >
+                  Personal
+                </button>
+                {user?.role === 'admin' && (
                   <button
-                    onClick={() => handleSaveView(false)}
+                    onClick={() => handleSaveView(true)}
                     disabled={savingView || !viewName.trim()}
-                    style={{ flex: 1, background: 'var(--color-primary)', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
+                    style={{ flex: 1, background: '#6c757d', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
                   >
-                    Personal
+                    Equip
                   </button>
-                  {user?.role === 'admin' && (
-                    <button
-                      onClick={() => handleSaveView(true)}
-                      disabled={savingView || !viewName.trim()}
-                      style={{ flex: 1, background: '#6c757d', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}
-                    >
-                      Equip
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Saved views tabs */}
@@ -573,7 +608,7 @@ export default function DealsListPage() {
       )}
 
       {/* Filter bar */}
-      {showFilterBar && viewMode === 'list' && (
+      {showFilterBar && (
         <div
           style={{
             padding: '16px 20px', borderBottom: '1px solid var(--color-border)',
@@ -600,8 +635,8 @@ export default function DealsListPage() {
 
           {/* Stage, owner, and property filters — grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 16px', alignItems: 'end' }}>
-            {/* Stage filter */}
-            {currentPipeline && currentPipeline.stages.length > 0 && (
+            {/* Stage filter — only in list mode (kanban columns are already per-stage) */}
+            {viewMode === 'list' && currentPipeline && currentPipeline.stages.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Etapa</label>
                 <select

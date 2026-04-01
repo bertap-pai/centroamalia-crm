@@ -208,6 +208,14 @@ export default async function dealsRoutes(app: FastifyInstance) {
       if (!pipelineId) return reply.code(400).send({ error: 'pipelineId_required' });
 
       const includeArchived = q['includeArchived'] === 'true';
+      const filterOwnerUserId = q['ownerUserId'];
+      const createdFrom = q['createdFrom'];
+      const createdTo = q['createdTo'];
+      const propFilters: Record<string, string> = {};
+      for (const [k, v] of Object.entries(q)) {
+        const m = k.match(/^filter\[(.+)\]$/);
+        if (m?.[1]) propFilters[m[1]] = v;
+      }
 
       const [pipeline] = await app.db
         .select()
@@ -224,6 +232,18 @@ export default async function dealsRoutes(app: FastifyInstance) {
 
       const conditions: any[] = [eq(deals.pipelineId, pipelineId)];
       if (!includeArchived) conditions.push(isNull(deals.archivedAt));
+      if (filterOwnerUserId) conditions.push(eq(deals.ownerUserId, filterOwnerUserId));
+      if (createdFrom) conditions.push(gte(deals.createdAt, new Date(createdFrom)));
+      if (createdTo) conditions.push(lte(deals.createdAt, new Date(createdTo)));
+      for (const [key, val] of Object.entries(propFilters)) {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM deal_property_values dpv
+            JOIN property_definitions pd ON dpv.property_definition_id = pd.id
+            WHERE dpv.deal_id = ${deals.id} AND pd.key = ${key} AND dpv.value = ${val}
+          )` as any,
+        );
+      }
 
       const dealRows = await app.db
         .select()
