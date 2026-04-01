@@ -89,7 +89,7 @@ export default async function formsRoutes(app: FastifyInstance) {
     const fields = await app.db
       .select()
       .from(formFields)
-      .where(eq(formFields.formId, id))
+      .where(and(eq(formFields.formId, id), eq(formFields.isVisible, true)))
       .orderBy(formFields.position);
 
     return { ...form, fields };
@@ -138,6 +138,7 @@ export default async function formsRoutes(app: FastifyInstance) {
         position?: number;
         options?: Array<{ key: string; label: string }>;
         crmPropertyKey?: string;
+        isVisible?: boolean;
       }>;
     };
 
@@ -172,6 +173,7 @@ export default async function formsRoutes(app: FastifyInstance) {
             position: f.position ?? idx,
             options: f.options ?? [],
             crmPropertyKey: f.crmPropertyKey ?? null,
+            isVisible: f.isVisible ?? true,
           })),
         );
       }
@@ -228,9 +230,9 @@ export default async function formsRoutes(app: FastifyInstance) {
       .where(eq(formFields.formId, id))
       .orderBy(formFields.position);
 
-    // Validate required fields
+    // Validate required fields (skip hidden fields — user cannot fill them)
     for (const field of fields) {
-      if (field.isRequired && !body[field.key]?.trim()) {
+      if (field.isRequired && field.isVisible && !body[field.key]?.trim()) {
         return reply.code(400).send({ error: 'required_field_missing', field: field.key });
       }
     }

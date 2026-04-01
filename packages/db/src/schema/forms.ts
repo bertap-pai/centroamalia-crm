@@ -65,6 +65,7 @@ export const formFields = pgTable(
     position: integer('position').notNull().default(0),
     options: jsonb('options').$type<Array<{ key: string; label: string }>>().default([]),
     crmPropertyKey: text('crm_property_key'),
+    isVisible: boolean('is_visible').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
