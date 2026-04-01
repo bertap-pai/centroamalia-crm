@@ -45,6 +45,7 @@ export default async function propertiesRoutes(app: FastifyInstance) {
         isInternalOnly?: boolean;
         isSensitive?: boolean;
         position?: string;
+        group?: string;
       };
 
       if (!body.key || !body.label || !body.scope || !body.type) {
@@ -63,6 +64,7 @@ export default async function propertiesRoutes(app: FastifyInstance) {
           isInternalOnly: body.isInternalOnly ?? false,
           isSensitive: body.isSensitive ?? false,
           position: body.position ?? '',
+          group: body.group ?? null,
         })
         .returning();
 
@@ -93,6 +95,7 @@ export default async function propertiesRoutes(app: FastifyInstance) {
         isInternalOnly?: boolean;
         isSensitive?: boolean;
         position?: string;
+        group?: string | null;
       };
 
       const existing = await app.db.query.propertyDefinitions.findFirst({
@@ -111,6 +114,7 @@ export default async function propertiesRoutes(app: FastifyInstance) {
       if (body.isInternalOnly !== undefined) updates.isInternalOnly = body.isInternalOnly;
       if (body.isSensitive !== undefined) updates.isSensitive = body.isSensitive;
       if (body.position !== undefined) updates.position = body.position;
+      if (body.group !== undefined) updates.group = body.group;
 
       const [updated] = await app.db
         .update(propertyDefinitions)
