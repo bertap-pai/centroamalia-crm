@@ -44,6 +44,7 @@ export const propertyDefinitions = pgTable(
     isInternalOnly: boolean('is_internal_only').notNull().default(false),
     isSensitive: boolean('is_sensitive').notNull().default(false),
     position: text('position').notNull().default(''), // for ordering in UI
+    group: text('group'),  // optional display group, e.g. 'Atribució', 'Aircall', 'Consulta'
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

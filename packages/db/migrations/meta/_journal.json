@@ -10,6 +10,7 @@
     { "idx": 5, "version": "7", "when": 5, "tag": "0006_pipeline_default_view", "breakpoints": true },
     { "idx": 6, "version": "7", "when": 6, "tag": "0007_forms",            "breakpoints": true },
     { "idx": 7, "version": "7", "when": 7, "tag": "0008_form_field_visible",       "breakpoints": true },
-    { "idx": 8, "version": "7", "when": 8, "tag": "0009_pipeline_kanban_default",  "breakpoints": true }
+    { "idx": 8, "version": "7", "when": 8, "tag": "0009_pipeline_kanban_default",  "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1743516000000, "tag": "0010_property_group", "breakpoints": true }
   ]
 }
