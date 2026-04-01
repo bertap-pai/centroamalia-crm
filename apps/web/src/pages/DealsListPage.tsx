@@ -136,7 +136,11 @@ export default function DealsListPage() {
   const [kanbanLoading, setKanbanLoading] = useState(false);
   const [draggingDealId, setDraggingDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<{ dealId: string; missingFields: string[] } | null>(null);
+  const [stageTransitionModal, setStageTransitionModal] = useState<{
+    dealId: string;
+    targetStageId: string;
+    missingFields: string[];
+  } | null>(null);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -231,7 +235,7 @@ export default function DealsListPage() {
   // Drag & drop handlers
   function handleDragStart(dealId: string) {
     setDraggingDealId(dealId);
-    setValidationError(null);
+    setStageTransitionModal(null);
   }
 
   function handleDragOver(e: React.DragEvent, stageId: string) {
@@ -253,7 +257,11 @@ export default function DealsListPage() {
       refreshKanban();
     } catch (err: any) {
       if (err.data?.error === 'validation_failed') {
-        setValidationError({ dealId: draggingDealId, missingFields: err.data.missingFields });
+        setStageTransitionModal({
+          dealId: draggingDealId,
+          targetStageId,
+          missingFields: err.data.missingFields,
+        });
       }
     } finally {
       setDraggingDealId(null);
@@ -698,23 +706,16 @@ export default function DealsListPage() {
         </div>
       )}
 
-      {/* Validation error banner */}
-      {validationError && (
-        <div
-          style={{
-            background: '#fff3cd', border: '1px solid #f0b99e', padding: '10px 24px',
-            fontSize: 13, color: '#856404', display: 'flex', alignItems: 'center', gap: 8,
-          }}
-        >
-          <span>⚠ No es pot moure el deal: camps obligatoris buits:</span>
-          <strong>{validationError.missingFields.join(', ')}</strong>
-          <button
-            onClick={() => setValidationError(null)}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#856404' }}
-          >
-            ×
-          </button>
-        </div>
+      {stageTransitionModal && (
+        <StageFillModal
+          dealId={stageTransitionModal.dealId}
+          targetStageId={stageTransitionModal.targetStageId}
+          missingFields={stageTransitionModal.missingFields}
+          propertyDefs={dealPropDefs}
+          users={users}
+          onClose={() => setStageTransitionModal(null)}
+          onSuccess={() => { setStageTransitionModal(null); refreshKanban(); }}
+        />
       )}
 
       {/* Content */}
@@ -1063,3 +1064,216 @@ const inputStyle: React.CSSProperties = {
   width: '100%', padding: '6px 8px', border: '1px solid var(--color-border)',
   borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };
+
+// ─── Stage Fill Modal ─────────────────────────────────────────────────────────
+
+function StageFillModal({
+  dealId,
+  targetStageId,
+  missingFields,
+  propertyDefs,
+  users,
+  onClose,
+  onSuccess,
+}: {
+  dealId: string;
+  targetStageId: string;
+  missingFields: string[];
+  propertyDefs: PropertyDef[];
+  users: UserOption[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const hasOwnerField = missingFields.includes('owner_user_id');
+  const propKeys = missingFields.filter((k) => k !== 'owner_user_id');
+  const relevantDefs = propKeys
+    .map((key) => propertyDefs.find((d) => d.key === key))
+    .filter((d): d is PropertyDef => Boolean(d));
+
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const unfilledLabels: string[] = [];
+    if (hasOwnerField && !values['owner_user_id']) unfilledLabels.push('Responsable');
+    for (const def of relevantDefs) {
+      if (!values[def.key]) unfilledLabels.push(def.label);
+    }
+    if (unfilledLabels.length > 0) {
+      setError(`Omple els camps obligatoris: ${unfilledLabels.join(', ')}`);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const patchBody: Record<string, any> = {};
+      if (hasOwnerField) patchBody.ownerUserId = values['owner_user_id'];
+      const propValues: Record<string, string> = {};
+      for (const def of relevantDefs) propValues[def.key] = values[def.key] ?? '';
+      if (Object.keys(propValues).length > 0) patchBody.properties = propValues;
+      await api.patch(`/api/deals/${dealId}`, patchBody);
+      await api.post(`/api/deals/${dealId}/stage`, { stageId: targetStageId });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? 'Error en guardar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 200,
+  };
+  const modalStyle: React.CSSProperties = {
+    position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+    background: '#fff', borderRadius: 10, padding: 24, zIndex: 201,
+    width: '90%', maxWidth: 480, boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+    maxHeight: '90vh', overflowY: 'auto',
+  };
+  const fieldStyle: React.CSSProperties = { marginBottom: 14 };
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4,
+  };
+  const inputCommon: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', border: '1px solid var(--color-border)',
+    borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={overlayStyle} />
+      <div style={modalStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+            Camps obligatoris per canviar d&apos;etapa
+          </h2>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#999' }}
+          >
+            ×
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+          Omple els camps següents per poder moure el deal a la nova etapa.
+        </p>
+        <form onSubmit={handleSubmit}>
+          {hasOwnerField && (
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Responsable *</label>
+              <select
+                value={values['owner_user_id'] ?? ''}
+                onChange={(e) => setValues((prev) => ({ ...prev, owner_user_id: e.target.value }))}
+                style={inputCommon}
+              >
+                <option value="">Selecciona un responsable...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {relevantDefs.map((def) => (
+            <div key={def.key} style={fieldStyle}>
+              <label style={labelStyle}>{def.label} *</label>
+              <PropertyInput
+                def={def}
+                value={values[def.key] ?? ''}
+                onChange={(v) => setValues((prev) => ({ ...prev, [def.key]: v }))}
+                inputStyle={inputCommon}
+              />
+            </div>
+          ))}
+          {error && (
+            <div style={{ color: '#e74c3c', fontSize: 13, marginBottom: 12 }}>{error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: '#fff', color: '#555', border: '1px solid var(--color-border)',
+                padding: '7px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              Cancel·lar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                background: 'var(--color-primary)', color: '#fff', border: 'none',
+                padding: '7px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              {saving ? 'Guardant...' : 'Guardar i moure'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+function PropertyInput({
+  def,
+  value,
+  onChange,
+  inputStyle: style,
+}: {
+  def: PropertyDef;
+  value: string;
+  onChange: (v: string) => void;
+  inputStyle: React.CSSProperties;
+}) {
+  if (def.type === 'select' || def.type === 'multiselect') {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={style}>
+        <option value="">Selecciona...</option>
+        {def.options?.map((o) => (
+          <option key={o.key} value={o.key}>{o.label}</option>
+        ))}
+      </select>
+    );
+  }
+  if (def.type === 'boolean') {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={style}>
+        <option value="">Selecciona...</option>
+        <option value="true">Sí</option>
+        <option value="false">No</option>
+      </select>
+    );
+  }
+  if (def.type === 'date' || def.type === 'datetime') {
+    return (
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={style}
+      />
+    );
+  }
+  if (def.type === 'textarea') {
+    return (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        style={style}
+      />
+    );
+  }
+  return (
+    <input
+      type={def.type === 'number' ? 'number' : 'text'}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={style}
+    />
+  );
+}
