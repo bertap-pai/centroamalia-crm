@@ -162,7 +162,7 @@ export default async function propertiesRoutes(app: FastifyInstance) {
         .where(eq(formFields.crmPropertyKey, existing.key));
 
       const usedIn: string[] = [
-        ...stageRefs.rows.map((r) => `pipeline stage "${r.name}"`),
+        ...Array.from(stageRefs).map((r) => `pipeline stage "${r.name}"`),
         ...formRefs.map((r) => `form field "${r.label ?? r.id}"`),
       ];
 
