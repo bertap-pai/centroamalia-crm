@@ -42,36 +42,8 @@ interface PropertyDef {
   scope: string;
   options: Array<{ key: string; label: string }> | null;
   isSensitive: boolean;
+  group: string | null;
 }
-
-// ─── Groups for display ───────────────────────────────────────────────────────
-
-const PROP_GROUPS: { label: string; keys: string[] }[] = [
-  {
-    label: 'Atribució',
-    keys: [
-      'first_lead_source', 'last_lead_source',
-      'first_meta_form', 'last_meta_form',
-      'first_page_url', 'last_page_url',
-      'first_utm_source', 'last_utm_source',
-      'first_utm_campaign', 'last_utm_campaign',
-      'first_utm_medium', 'last_utm_medium',
-      'first_submission_at', 'last_submission_at',
-    ],
-  },
-  {
-    label: 'Aircall',
-    keys: [
-      'last_aircall_call_outcome', 'last_aircall_call_timestamp',
-      'last_aircall_sms_direction', 'last_aircall_sms_timestamp',
-      'last_used_aircall_phone_number', 'last_used_aircall_tags',
-    ],
-  },
-  {
-    label: 'Consulta',
-    keys: ['consult_reason_code', 'consult_reason_notes'],
-  },
-];
 
 const CORE_KEYS = ['first_name', 'last_name', 'email', 'phone_e164', 'servei_interes'];
 
@@ -181,7 +153,26 @@ export default function ContactDetailPage() {
   if (!contact) return null;
 
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Sense nom';
-  const allGroupKeys = PROP_GROUPS.flatMap((g) => g.keys);
+
+  // Build display groups from property definitions
+  const displayGroups: { label: string; keys: string[] }[] = [];
+  const groupOrder: string[] = [];
+  const groupMap = new Map<string, string[]>();
+
+  for (const def of propDefs) {
+    if (!def.group || CORE_KEYS.includes(def.key)) continue;
+    if (!groupMap.has(def.group)) {
+      groupMap.set(def.group, []);
+      groupOrder.push(def.group);
+    }
+    groupMap.get(def.group)!.push(def.key);
+  }
+
+  for (const label of groupOrder) {
+    displayGroups.push({ label, keys: groupMap.get(label)! });
+  }
+
+  const allGroupKeys = displayGroups.flatMap((g) => g.keys);
 
   // Other properties not in any group or core
   // When editing, include all propDefs for this scope even if they have no value yet
@@ -289,22 +280,24 @@ export default function ContactDetailPage() {
       </div>
 
       {/* Properties card */}
-      {PROP_GROUPS.map((group) => {
+      {displayGroups.map((group) => {
         const keys = group.keys.filter(
           (k) => contact.properties[k] !== undefined || (editing && defFor(k)),
         );
         if (keys.length === 0 && !editing) return null;
         return (
           <div
-            key={group.label}
+            key={group.label || '__ungrouped__'}
             style={{
               background: '#fff', borderRadius: 10, padding: '20px 24px',
               border: '1px solid var(--color-border)', marginBottom: 16,
             }}
           >
-            <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555' }}>
-              {group.label}
-            </h3>
+            {group.label && (
+              <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555' }}>
+                {group.label}
+              </h3>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
               {group.keys.map((key) => {
                 const def = defFor(key);
