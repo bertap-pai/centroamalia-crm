@@ -14,6 +14,7 @@ interface PropertyDef {
   isInternalOnly: boolean;
   isSensitive: boolean;
   position: string;
+  group: string | null;
   createdAt: string;
 }
 
@@ -93,6 +94,7 @@ export default function AdminPropertiesPage() {
       isInternalOnly: def.isInternalOnly,
       isSensitive: def.isSensitive,
       position: def.position,
+      group: def.group ?? '',
     });
     setFormError('');
     setEditingId(def.id);
@@ -125,6 +127,7 @@ export default function AdminPropertiesPage() {
         isInternalOnly: form.isInternalOnly,
         isSensitive: form.isSensitive,
         position: form.position,
+        group: form.group || null,
       };
 
       if (editingId) {
@@ -194,6 +197,7 @@ export default function AdminPropertiesPage() {
               <Th>Tipus</Th>
               <Th>Flags</Th>
               <Th>Opcions</Th>
+              <Th>Grup</Th>
               <Th>{''}</Th>
             </tr>
           </thead>
@@ -224,6 +228,9 @@ export default function AdminPropertiesPage() {
                     ? <span style={{ color: '#888' }}>{def.options.length} opcions</span>
                     : <span style={{ color: '#ccc' }}>—</span>
                   }
+                </Td>
+                <Td>
+                  <span style={{ color: def.group ? '#555' : '#ccc' }}>{def.group ?? '—'}</span>
                 </Td>
                 <Td>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -315,6 +322,19 @@ export default function AdminPropertiesPage() {
               />
               <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
                 Determina l'ordre en què apareix el camp dins la seva secció. Valors més petits apareixen primer (010 abans que 020).
+              </div>
+            </Field>
+
+            <Field label="Grup de display">
+              <input
+                type="text"
+                value={form.group}
+                onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
+                placeholder="p.ex. Atribució, Aircall, Consulta"
+                style={{ ...inputStyle, width: '100%' }}
+              />
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                Deixa en blanc si no cal agrupar. Els noms de grup han de coincidir exactament.
               </div>
             </Field>
 
@@ -518,6 +538,7 @@ type FormState = {
   isInternalOnly: boolean;
   isSensitive: boolean;
   position: string;
+  group: string;
 };
 
 function emptyForm(): FormState {
@@ -531,6 +552,7 @@ function emptyForm(): FormState {
     isInternalOnly: false,
     isSensitive: false,
     position: '',
+    group: '',
   };
 }
 
