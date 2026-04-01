@@ -17,6 +17,7 @@ interface FormField {
   type: FieldType;
   placeholder: string;
   isRequired: boolean;
+  isVisible: boolean;
   position: number;
   options: FieldOption[];
   crmPropertyKey: string;
@@ -41,13 +42,6 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   checkbox: 'Casella',
 };
 
-const CRM_PROPERTY_KEYS = [
-  { key: '', label: '— No mapejat —' },
-  { key: 'email', label: 'Email (contacte)' },
-  { key: 'phone', label: 'Telèfon (contacte)' },
-  { key: 'first_name', label: 'Nom' },
-  { key: 'last_name', label: 'Cognom' },
-];
 
 function makeKey(label: string): string {
   return label
@@ -66,6 +60,7 @@ function newField(position: number): FormField {
     type: 'text',
     placeholder: '',
     isRequired: false,
+    isVisible: true,
     position,
     options: [],
     crmPropertyKey: '',
@@ -85,6 +80,15 @@ export default function FormEditorPage() {
   const [saved, setSaved] = useState(false);
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null);
   const [tab, setTab] = useState<'editor' | 'preview' | 'embed'>('editor');
+  const [crmProperties, setCrmProperties] = useState<Array<{ key: string; label: string }>>([]);
+
+  useEffect(() => {
+    api.get('/api/properties?scope=contact')
+      .then((data: Array<{ key: string; label: string }>) => {
+        setCrmProperties([{ key: '', label: '— No mapejat —' }, ...data.map((p) => ({ key: p.key, label: p.label }))]);
+      })
+      .catch(() => {/* silently ignore — mapping dropdown will be empty */});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -98,6 +102,7 @@ export default function FormEditorPage() {
             placeholder: f.placeholder ?? '',
             options: f.options ?? [],
             crmPropertyKey: f.crmPropertyKey ?? '',
+            isVisible: f.isVisible ?? true,
           })),
         });
       })
@@ -125,6 +130,7 @@ export default function FormEditorPage() {
           placeholder: fl.placeholder ?? '',
           options: fl.options ?? [],
           crmPropertyKey: fl.crmPropertyKey ?? '',
+          isVisible: fl.isVisible ?? true,
         })),
       });
       setSaved(true);
@@ -293,6 +299,7 @@ export default function FormEditorPage() {
                 <FieldPropertiesPanel
                   field={form.fields[selectedFieldIdx]!}
                   isAdmin={isAdmin}
+                  crmProperties={crmProperties}
                   onChange={(changes) => updateField(selectedFieldIdx, changes)}
                 />
               ) : (
@@ -366,13 +373,13 @@ export default function FormEditorPage() {
   );
 }
 
-function FieldPropertiesPanel({ field, isAdmin, onChange }: {
+function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
   field: FormField;
   isAdmin: boolean;
+  crmProperties: Array<{ key: string; label: string }>;
   onChange: (changes: Partial<FormField>) => void;
 }) {
   function handleLabelChange(label: string) {
-    // Auto-update key if it looks auto-generated
     const autoKey = makeKey(label);
     onChange({ label, key: autoKey });
   }
@@ -446,6 +453,20 @@ function FieldPropertiesPanel({ field, isAdmin, onChange }: {
         </label>
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+        <input
+          type="checkbox"
+          id="visible"
+          checked={field.isVisible}
+          disabled={!isAdmin}
+          onChange={(e) => onChange({ isVisible: e.target.checked })}
+          style={{ width: 16, height: 16, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+        />
+        <label htmlFor="visible" style={{ fontSize: 13, color: '#444', cursor: isAdmin ? 'pointer' : 'default' }}>
+          Visible per al client
+        </label>
+      </div>
+
       <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--color-border)' }}>
         <Label>Mapatge CRM</Label>
         <select
@@ -454,7 +475,7 @@ function FieldPropertiesPanel({ field, isAdmin, onChange }: {
           onChange={(e) => onChange({ crmPropertyKey: e.target.value })}
           style={{ ...inputStyle, width: '100%' }}
         >
-          {CRM_PROPERTY_KEYS.map((k) => (
+          {crmProperties.map((k) => (
             <option key={k.key} value={k.key}>{k.label}</option>
           ))}
         </select>
@@ -506,9 +527,8 @@ function SelectOptionsEditor({ options, isAdmin, onChange }: {
 function FormPreview({ form }: { form: FormData }) {
   return (
     <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: 28 }}>
-      <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#1c1c1c' }}>{form.name}</h2>
       {form.description && <p style={{ margin: '0 0 24px', color: '#666', fontSize: 14 }}>{form.description}</p>}
-      {form.fields.map((field, idx) => (
+      {form.fields.filter((f) => f.isVisible).map((field, idx) => (
         <div key={idx} style={{ marginBottom: 18 }}>
           <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 6 }}>
             {field.label || `Camp ${idx + 1}`}

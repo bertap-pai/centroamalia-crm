@@ -136,7 +136,6 @@ export default function FormEmbedPage() {
   return (
     <div style={containerStyle}>
       <form onSubmit={handleSubmit} noValidate>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px', color: '#1c1c1c' }}>{form.name}</h1>
         {form.description && (
           <p style={{ margin: '0 0 24px', color: '#666', fontSize: 14 }}>{form.description}</p>
         )}
