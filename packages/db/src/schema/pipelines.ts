@@ -14,7 +14,7 @@ export const pipelines = pgTable('pipelines', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(), // 'leads' | 'pacients' | 'bd'
   position: integer('position').notNull().default(0),
-  defaultView: text('default_view').notNull().default('list'), // 'list' | 'kanban'
+  defaultView: text('default_view').notNull().default('kanban'), // 'list' | 'kanban'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
