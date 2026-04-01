@@ -8,6 +8,13 @@ interface Stage {
   position: number;
   isClosedWon: boolean;
   isClosedLost: boolean;
+  requiredFields: string[];
+}
+
+interface DealProp {
+  id: string;
+  key: string;
+  label: string;
 }
 
 interface Pipeline {
@@ -45,6 +52,9 @@ export default function AdminPipelinesPage() {
   const [editingStageName, setEditingStageName] = useState('');
   const [editingStageClosedWon, setEditingStageClosedWon] = useState(false);
   const [editingStageClosedLost, setEditingStageClosedLost] = useState(false);
+  const [editingStageRequiredFields, setEditingStageRequiredFields] = useState<string[]>([]);
+
+  const [dealProps, setDealProps] = useState<DealProp[]>([]);
 
   // Confirm delete
   const [deletingPipelineId, setDeletingPipelineId] = useState<string | null>(null);
@@ -53,8 +63,15 @@ export default function AdminPipelinesPage() {
 
   function load() {
     setLoading(true);
-    api.get('/api/pipelines')
-      .then((data) => { setPipelines(data); setError(''); })
+    Promise.all([
+      api.get('/api/pipelines'),
+      api.get('/api/properties?scope=deal'),
+    ])
+      .then(([pipelineData, propData]) => {
+        setPipelines(pipelineData);
+        setDealProps(propData);
+        setError('');
+      })
       .catch(() => setError('Error carregant els pipelines.'))
       .finally(() => setLoading(false));
   }
@@ -176,6 +193,7 @@ export default function AdminPipelinesPage() {
         name: editingStageName.trim(),
         isClosedWon: editingStageClosedWon,
         isClosedLost: editingStageClosedLost,
+        requiredFields: editingStageRequiredFields,
       });
       setEditingStageId(null);
       load();
@@ -347,6 +365,31 @@ export default function AdminPipelinesPage() {
                       />
                       Tancat Perdut
                     </label>
+                    {dealProps.length > 0 && (
+                      <div style={{ width: '100%', marginTop: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
+                          Camps obligatoris per entrar en aquesta etapa:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {dealProps.map((prop) => (
+                            <label key={prop.key} style={checkLabel}>
+                              <input
+                                type="checkbox"
+                                checked={editingStageRequiredFields.includes(prop.key)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditingStageRequiredFields((prev) => [...prev, prop.key]);
+                                  } else {
+                                    setEditingStageRequiredFields((prev) => prev.filter((k) => k !== prop.key));
+                                  }
+                                }}
+                              />
+                              {prop.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <button onClick={() => handleSaveStage(pipeline.id, stage.id)} style={primaryBtn}>Guardar</button>
                     <button onClick={() => setEditingStageId(null)} style={secondaryBtn}>Cancel·lar</button>
                   </div>
@@ -370,6 +413,14 @@ export default function AdminPipelinesPage() {
                       <span style={{ fontSize: 13 }}>{stage.name}</span>
                       {stage.isClosedWon && <span style={badge('green')}>Guanyat</span>}
                       {stage.isClosedLost && <span style={badge('red')}>Perdut</span>}
+                      {(stage.requiredFields ?? []).map((key) => {
+                        const prop = dealProps.find((p) => p.key === key);
+                        return (
+                          <span key={key} style={badge('blue')}>
+                            {prop?.label ?? key}
+                          </span>
+                        );
+                      })}
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
@@ -378,6 +429,7 @@ export default function AdminPipelinesPage() {
                           setEditingStageName(stage.name);
                           setEditingStageClosedWon(stage.isClosedWon);
                           setEditingStageClosedLost(stage.isClosedLost);
+                          setEditingStageRequiredFields(stage.requiredFields ?? []);
                         }}
                         style={smallBtn}
                       >
@@ -544,14 +596,14 @@ const arrowBtn: React.CSSProperties = {
   lineHeight: 1,
 };
 
-function badge(color: 'green' | 'red'): React.CSSProperties {
+function badge(color: 'green' | 'red' | 'blue'): React.CSSProperties {
   return {
     fontSize: 10,
     fontWeight: 700,
     padding: '2px 6px',
     borderRadius: 10,
-    background: color === 'green' ? '#e6f4ea' : '#fde8e8',
-    color: color === 'green' ? '#2d7a3a' : '#c0392b',
+    background: color === 'green' ? '#e6f4ea' : color === 'red' ? '#fde8e8' : '#e8f0fe',
+    color: color === 'green' ? '#2d7a3a' : color === 'red' ? '#c0392b' : '#1a56db',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   };
