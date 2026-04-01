@@ -76,6 +76,8 @@ export default function AdminPropertiesPage() {
     ? defs
     : defs.filter((d) => d.scope === scopeFilter);
 
+  const distinctGroups = [...new Set(defs.map((d) => d.group).filter((g): g is string => Boolean(g)))];
+
   function startCreate() {
     setForm(emptyForm());
     setFormError('');
@@ -328,13 +330,19 @@ export default function AdminPropertiesPage() {
             <Field label="Grup de display">
               <input
                 type="text"
+                list="group-suggestions"
                 value={form.group}
                 onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
-                placeholder="p.ex. Atribució, Aircall, Consulta"
+                placeholder="Selecciona o escriu un nou grup..."
                 style={{ ...inputStyle, width: '100%' }}
               />
+              <datalist id="group-suggestions">
+                {distinctGroups.map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
               <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                Deixa en blanc si no cal agrupar. Els noms de grup han de coincidir exactament.
+                Deixa en blanc per no agrupar. Pots seleccionar un grup existent o escriure&apos;n un de nou.
               </div>
             </Field>
 
