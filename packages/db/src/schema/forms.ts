@@ -39,6 +39,10 @@ export const forms = pgTable(
     status: formStatusEnum('status').notNull().default('draft'),
     submitLabel: text('submit_label').notNull().default('Enviar'),
     successMessage: text('success_message').notNull().default('Gràcies! Hem rebut el teu missatge.'),
+    buttonStyle: jsonb('button_style')
+      .$type<{ background: string; color: string; borderRadius: number; fontSize: number }>()
+      .notNull()
+      .default({ background: '#e87d52', color: '#ffffff', borderRadius: 6, fontSize: 14 }),
     createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
