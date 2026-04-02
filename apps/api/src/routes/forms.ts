@@ -129,6 +129,12 @@ export default async function formsRoutes(app: FastifyInstance) {
       status?: 'draft' | 'active' | 'paused' | 'archived';
       submitLabel?: string;
       successMessage?: string;
+      buttonStyle?: {
+        background?: string;
+        color?: string;
+        borderRadius?: number;
+        fontSize?: number;
+      };
       fields?: Array<{
         key: string;
         label: string;
@@ -151,6 +157,10 @@ export default async function formsRoutes(app: FastifyInstance) {
     if (body.status !== undefined) updates['status'] = body.status;
     if (body.submitLabel !== undefined) updates['submitLabel'] = body.submitLabel;
     if (body.successMessage !== undefined) updates['successMessage'] = body.successMessage;
+    if (body.buttonStyle !== undefined) {
+      const existing_bs = existing.buttonStyle as { background: string; color: string; borderRadius: number; fontSize: number };
+      updates['buttonStyle'] = { ...existing_bs, ...body.buttonStyle };
+    }
 
     const [updated] = await app.db
       .update(forms)
