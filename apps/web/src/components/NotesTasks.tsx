@@ -8,6 +8,9 @@ interface Note {
   body: string;
   authorName: string | null;
   createdAt: string;
+  updatedAt: string | null;
+  parentNoteId: string | null;
+  replies: Note[];
 }
 
 interface Task {
@@ -43,6 +46,181 @@ const fmtDateTime = (s: string | null) => {
     minute: '2-digit',
   }).format(new Date(s));
 };
+
+// ─── NoteCard ─────────────────────────────────────────────────────────────────
+
+function NoteCard({
+  note,
+  isReply,
+  objectType,
+  objectId,
+  onDelete,
+  onUpdate,
+  onReplyAdded,
+}: {
+  note: Note;
+  isReply?: boolean;
+  objectType: ObjectType;
+  objectId: string;
+  onDelete: (id: string) => void;
+  onUpdate: (id: string, body: string, updatedAt: string) => void;
+  onReplyAdded: (parentId: string, reply: Note) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState(note.body);
+  const [saving, setSaving] = useState(false);
+
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyBody, setReplyBody] = useState('');
+  const [savingReply, setSavingReply] = useState(false);
+
+  async function saveEdit() {
+    if (!editBody.trim() || saving) return;
+    setSaving(true);
+    try {
+      const res = await api.patch(`/api/notes/${note.id}`, { body: editBody.trim() });
+      onUpdate(note.id, res.body, res.updatedAt);
+      setEditing(false);
+    } catch {
+      alert('Error en guardar els canvis.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addReply() {
+    if (!replyBody.trim() || savingReply) return;
+    setSavingReply(true);
+    try {
+      const reply = await api.post('/api/notes', {
+        objectType,
+        objectId,
+        body: replyBody.trim(),
+        parentNoteId: note.id,
+      });
+      onReplyAdded(note.id, { ...reply, replies: [] });
+      setReplyBody('');
+      setReplyOpen(false);
+    } catch {
+      alert('Error en guardar la resposta.');
+    } finally {
+      setSavingReply(false);
+    }
+  }
+
+  return (
+    <div style={isReply ? replyNoteStyle : noteStyle}>
+      {/* Body / Edit mode */}
+      {editing ? (
+        <div>
+          <textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            rows={3}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button
+              onClick={saveEdit}
+              disabled={!editBody.trim() || saving}
+              style={primaryBtn}
+            >
+              {saving ? 'Guardant...' : 'Desar'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setEditBody(note.body); }}
+              style={ghostBtn}
+            >
+              Cancel·lar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note.body}</div>
+      )}
+
+      {/* Meta row */}
+      {!editing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: '#aaa' }}>
+            {note.authorName ?? 'Usuari'} · {fmtDateTime(note.createdAt)}
+            {note.updatedAt && <span style={{ marginLeft: 4, fontStyle: 'italic' }}>· editat</span>}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            style={ghostEditBtn}
+            title="Editar nota"
+          >
+            ✎
+          </button>
+          {!isReply && (
+            <button
+              onClick={() => setReplyOpen(!replyOpen)}
+              style={ghostBtn}
+              title="Respondre"
+            >
+              Respondre{note.replies.length > 0 ? ` (${note.replies.length})` : ''}
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(note.id)}
+            style={ghostDangerBtn}
+            title="Eliminar nota"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Reply input */}
+      {!isReply && replyOpen && (
+        <div style={{ marginTop: 10 }}>
+          <textarea
+            placeholder="Escriu una resposta..."
+            value={replyBody}
+            onChange={(e) => setReplyBody(e.target.value)}
+            rows={2}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addReply();
+            }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <button
+              onClick={addReply}
+              disabled={!replyBody.trim() || savingReply}
+              style={primaryBtn}
+            >
+              {savingReply ? 'Guardant...' : 'Respondre'}
+            </button>
+            <button onClick={() => { setReplyOpen(false); setReplyBody(''); }} style={ghostBtn}>
+              Cancel·lar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Nested replies */}
+      {!isReply && note.replies.length > 0 && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {note.replies.map((r) => (
+            <NoteCard
+              key={r.id}
+              note={r}
+              isReply
+              objectType={objectType}
+              objectId={objectId}
+              onDelete={onDelete}
+              onUpdate={onUpdate}
+              onReplyAdded={onReplyAdded}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -86,7 +264,7 @@ export function NotesTasks({
         objectId,
         body: noteBody.trim(),
       });
-      setNotes([note, ...notes]);
+      setNotes([{ ...note, replies: [] }, ...notes]);
       setNoteBody('');
     } catch {
       alert('Error en guardar la nota.');
@@ -95,10 +273,31 @@ export function NotesTasks({
     }
   }
 
-  async function deleteNote(id: string) {
+  function handleDeleteNote(id: string) {
     if (!confirm('Eliminar aquesta nota?')) return;
-    await api.delete(`/api/notes/${id}`);
-    setNotes(notes.filter((n) => n.id !== id));
+    api.delete(`/api/notes/${id}`);
+    setNotes(
+      notes
+        .filter((n) => n.id !== id)
+        .map((n) => ({ ...n, replies: n.replies.filter((r) => r.id !== id) })),
+    );
+  }
+
+  function handleUpdateNote(id: string, body: string, updatedAt: string) {
+    setNotes(
+      notes.map((n) => {
+        if (n.id === id) return { ...n, body, updatedAt };
+        return { ...n, replies: n.replies.map((r) => (r.id === id ? { ...r, body, updatedAt } : r)) };
+      }),
+    );
+  }
+
+  function handleReplyAdded(parentId: string, reply: Note) {
+    setNotes(
+      notes.map((n) =>
+        n.id === parentId ? { ...n, replies: [...n.replies, reply] } : n,
+      ),
+    );
   }
 
   async function addTask() {
@@ -172,21 +371,15 @@ export function NotesTasks({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {notes.map((n) => (
-              <div key={n.id} style={noteStyle}>
-                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{n.body}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: '#aaa' }}>
-                    {n.authorName ?? 'Usuari'} · {fmtDateTime(n.createdAt)}
-                  </span>
-                  <button
-                    onClick={() => deleteNote(n.id)}
-                    style={ghostDangerBtn}
-                    title="Eliminar nota"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
+              <NoteCard
+                key={n.id}
+                note={n}
+                objectType={objectType}
+                objectId={objectId}
+                onDelete={handleDeleteNote}
+                onUpdate={handleUpdateNote}
+                onReplyAdded={handleReplyAdded}
+              />
             ))}
           </div>
         )}
@@ -310,6 +503,14 @@ const noteStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
 };
 
+const replyNoteStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  background: '#f3f3f3',
+  borderRadius: 5,
+  border: '1px solid var(--color-border)',
+  marginLeft: 16,
+};
+
 const taskRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -338,6 +539,28 @@ const primaryBtn: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const ghostBtn: React.CSSProperties = {
+  background: 'none',
+  border: '1px solid var(--color-border)',
+  color: '#666',
+  fontSize: 12,
+  cursor: 'pointer',
+  padding: '3px 8px',
+  borderRadius: 5,
+  fontFamily: 'inherit',
+};
+
+const ghostEditBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#bbb',
+  fontSize: 14,
+  cursor: 'pointer',
+  padding: '0 2px',
+  lineHeight: 1,
   fontFamily: 'inherit',
 };
 

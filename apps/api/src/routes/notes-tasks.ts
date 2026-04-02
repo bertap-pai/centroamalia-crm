@@ -16,7 +16,8 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'invalid_object_type' });
     }
 
-    const rows = await app.db
+    // Fetch all non-archived notes for this object (top-level and replies)
+    const allRows = await app.db
       .select()
       .from(notes)
       .where(
@@ -26,10 +27,10 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
           isNull(notes.archivedAt),
         ),
       )
-      .orderBy(desc(notes.createdAt));
+      .orderBy(asc(notes.createdAt));
 
-    // Attach author names
-    const authorIds = [...new Set(rows.flatMap((r) => r.createdByUserId ? [r.createdByUserId] : []))];
+    // Collect all unique author IDs
+    const authorIds = [...new Set(allRows.flatMap((r) => r.createdByUserId ? [r.createdByUserId] : []))];
     const authorMap: Record<string, string> = {};
     if (authorIds.length > 0) {
       const authorRows = await app.db
@@ -39,15 +40,34 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
       for (const a of authorRows) authorMap[a.id] = a.name ?? a.id;
     }
 
-    return rows.map((n) => ({
-      ...n,
+    const toShape = (n: typeof allRows[number]) => ({
+      id: n.id,
+      body: n.body,
       authorName: n.createdByUserId ? (authorMap[n.createdByUserId] ?? null) : null,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt ?? null,
+      parentNoteId: n.parentNoteId ?? null,
+    });
+
+    const repliesMap: Record<string, ReturnType<typeof toShape>[]> = {};
+    for (const r of allRows) {
+      if (r.parentNoteId) {
+        if (!repliesMap[r.parentNoteId]) repliesMap[r.parentNoteId] = [];
+        repliesMap[r.parentNoteId]!.push(toShape(r));
+      }
+    }
+
+    // Return top-level notes (desc) with nested replies (asc, already ordered)
+    const topLevel = allRows.filter((r) => !r.parentNoteId).reverse();
+    return topLevel.map((n) => ({
+      ...toShape(n),
+      replies: repliesMap[n.id] ?? [],
     }));
   });
 
   // Create note
   app.post('/api/notes', { preHandler: app.requireAuth }, async (req, reply) => {
-    const body = req.body as { objectType: string; objectId: string; body: string };
+    const body = req.body as { objectType: string; objectId: string; body: string; parentNoteId?: string };
     if (!body.objectType || !body.objectId || !body.body?.trim()) {
       return reply.code(400).send({ error: 'objectType_objectId_body_required' });
     }
@@ -62,6 +82,7 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
         objectId: body.objectId,
         body: body.body.trim(),
         createdByUserId: req.user!.id,
+        parentNoteId: body.parentNoteId ?? null,
       })
       .returning();
 
@@ -70,13 +91,47 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
       action: 'create',
       objectType: 'note',
       objectId: note!.id,
-      diff: { after: { objectType: body.objectType, objectId: body.objectId } },
+      diff: { after: { objectType: body.objectType, objectId: body.objectId, parentNoteId: body.parentNoteId ?? null } },
     });
 
     return reply.code(201).send({
-      ...note,
+      id: note!.id,
+      body: note!.body,
       authorName: req.user!.name ?? null,
+      createdAt: note!.createdAt,
+      updatedAt: null,
+      parentNoteId: note!.parentNoteId ?? null,
     });
+  });
+
+  // Edit note body
+  app.patch('/api/notes/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as { body: string };
+    if (!body.body?.trim()) {
+      return reply.code(400).send({ error: 'body_required' });
+    }
+
+    const [note] = await app.db
+      .update(notes)
+      .set({ body: body.body.trim(), updatedAt: new Date(), updatedByUserId: req.user!.id })
+      .where(and(eq(notes.id, id), isNull(notes.archivedAt)))
+      .returning();
+    if (!note) return reply.code(404).send({ error: 'not_found' });
+
+    await app.audit({
+      userId: req.user!.id,
+      action: 'update',
+      objectType: 'note',
+      objectId: note.id,
+      diff: { after: { body: note.body } },
+    });
+
+    return {
+      id: note.id,
+      body: note.body,
+      updatedAt: note.updatedAt,
+    };
   });
 
   // Archive (delete) note

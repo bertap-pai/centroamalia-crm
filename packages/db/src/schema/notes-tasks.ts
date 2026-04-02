@@ -5,6 +5,7 @@ import {
   timestamp,
   pgEnum,
   index,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
@@ -23,6 +24,11 @@ export const notes = pgTable(
       onDelete: 'set null',
     }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+    updatedByUserId: uuid('updated_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    parentNoteId: uuid('parent_note_id').references((): AnyPgColumn => notes.id),
     // Soft delete
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     archivedByUserId: uuid('archived_by_user_id').references(() => users.id, {
@@ -31,6 +37,7 @@ export const notes = pgTable(
   },
   (t) => ({
     objectIdx: index('notes_object_idx').on(t.objectType, t.objectId),
+    parentNoteIdIdx: index('notes_parent_note_id_idx').on(t.parentNoteId),
   }),
 );
 
