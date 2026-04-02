@@ -871,12 +871,18 @@ function ListView({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#f9f9f9', borderBottom: '1px solid var(--color-border)' }}>
-              <th style={th}>Contacte</th>
-              <th style={th}>Telèfon</th>
+              <SortableTh field="contact_first_name" sortField={sortField} sortDir={sortDir} onSort={onSort}>
+                Contacte
+              </SortableTh>
+              <SortableTh field="contact_phone_e164" sortField={sortField} sortDir={sortDir} onSort={onSort}>
+                Telèfon
+              </SortableTh>
               <SortableTh field="current_stage_entered_at" sortField={sortField} sortDir={sortDir} onSort={onSort}>
                 Pipeline · Etapa
               </SortableTh>
-              <th style={th}>Responsable</th>
+              <SortableTh field="owner_name" sortField={sortField} sortDir={sortDir} onSort={onSort}>
+                Responsable
+              </SortableTh>
               {propColumns.map((key) => (
                 <th
                   key={key}

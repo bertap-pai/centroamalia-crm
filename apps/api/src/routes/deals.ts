@@ -90,6 +90,9 @@ export default async function dealsRoutes(app: FastifyInstance) {
         created_at: deals.createdAt,
         updated_at: deals.updatedAt,
         current_stage_entered_at: deals.currentStageEnteredAt,
+        owner_name: sql`(SELECT u.name FROM users u WHERE u.id = ${deals.ownerUserId})`,
+        contact_first_name: sql`(SELECT c.first_name FROM deal_contacts dc JOIN contacts c ON c.id = dc.contact_id WHERE dc.deal_id = ${deals.id} AND dc.is_primary = true LIMIT 1)`,
+        contact_phone_e164: sql`(SELECT c.phone_e164 FROM deal_contacts dc JOIN contacts c ON c.id = dc.contact_id WHERE dc.deal_id = ${deals.id} AND dc.is_primary = true LIMIT 1)`,
       };
       const sortCol = q['sort'] && baseFields[q['sort']] ? baseFields[q['sort']] : deals.createdAt;
       const orderBy = q['sortDir'] === 'asc' ? asc(sortCol) : desc(sortCol);
