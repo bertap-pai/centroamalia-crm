@@ -2,6 +2,7 @@
   "name": "crm-centro-amalia",
   "private": true,
   "scripts": {
+    "predev": "pnpm --filter @crm/db build",
     "dev": "pnpm --parallel -r dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
