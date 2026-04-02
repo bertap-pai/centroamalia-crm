@@ -405,12 +405,16 @@ export default function ContactDetailPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {contact.deals.map((d) => (
-              <div
+              <Link
                 key={d.dealId}
+                to={`/deals/${d.dealId}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+              <div
                 style={{
                   padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 6,
                   display: 'flex', alignItems: 'center', gap: 12,
-                  opacity: d.archivedAt ? 0.5 : 1,
+                  opacity: d.archivedAt ? 0.5 : 1, cursor: 'pointer',
                 }}
               >
                 {d.isPrimary && (
@@ -431,6 +435,7 @@ export default function ContactDetailPage() {
                   <div style={{ color: '#bbb', marginTop: 2 }}>{fmtDate(d.createdAt)}</div>
                 </div>
               </div>
+              </Link>
             ))}
           </div>
         )}
