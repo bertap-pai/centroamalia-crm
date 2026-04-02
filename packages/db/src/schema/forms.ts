@@ -20,6 +20,7 @@ export const formFieldTypeEnum = pgEnum('form_field_type', [
   'textarea',
   'select',
   'checkbox',
+  'static_text',
 ]);
 
 export const formStatusEnum = pgEnum('form_status', [
