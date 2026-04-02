@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BASE_PATH } from '../lib/base-path.js';
 
-type FieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox';
+type FieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox' | 'static_text';
+
+function getOption(options: Array<{ key: string; label: string }>, key: string, fallback: string): string {
+  return options.find((o) => o.key === key)?.label ?? fallback;
+}
 
 interface FormField {
   id: string;
@@ -151,12 +155,30 @@ export default function FormEmbedPage() {
 
         {form.fields.map((field) => (
           <div key={field.key} style={{ marginBottom: 18 }}>
-            <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 5 }}>
-              {field.label}
-              {field.isRequired && <span style={{ color: '#e87d52', marginLeft: 3 }}>*</span>}
-            </label>
+            {field.type !== 'static_text' && (
+              <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 5 }}>
+                {field.label}
+                {field.isRequired && <span style={{ color: '#e87d52', marginLeft: 3 }}>*</span>}
+              </label>
+            )}
 
-            {field.type === 'textarea' ? (
+            {field.type === 'static_text' ? (() => {
+              const preset = getOption(field.options, 'preset', 'normal');
+              const color = getOption(field.options, 'color', '#333');
+              if (preset === 'heading') {
+                return (
+                  <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color }}>{field.label}</h2>
+                );
+              }
+              if (preset === 'caption') {
+                return (
+                  <p style={{ margin: '0 0 4px', fontSize: 12, color, opacity: 0.75 }}>{field.label}</p>
+                );
+              }
+              return (
+                <p style={{ margin: '0 0 4px', fontSize: 14, color }}>{field.label}</p>
+              );
+            })() : field.type === 'textarea' ? (
               <textarea
                 value={values[field.key] ?? ''}
                 onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
