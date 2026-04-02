@@ -485,7 +485,7 @@ export default function ContactsListPage() {
             <thead>
               <tr>
                 <SortableTh field="first_name" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Nom</SortableTh>
-                <Th>Telèfon</Th>
+                <SortableTh field="phone_e164" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Telèfon</SortableTh>
                 <SortableTh field="email" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Email</SortableTh>
                 {propColumns.map((key) => (
                   <th

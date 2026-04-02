@@ -862,9 +862,6 @@ function ListView({
     onReorderColumns(cols);
   }
 
-  const sortIcon = (field: string) =>
-    sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-
   if (loading) return <div style={{ padding: 48, color: '#999', textAlign: 'center' }}>Carregant...</div>;
   if (error) return <div style={{ padding: 48, color: 'var(--color-error)', textAlign: 'center' }}>{error}</div>;
 
@@ -876,12 +873,9 @@ function ListView({
             <tr style={{ background: '#f9f9f9', borderBottom: '1px solid var(--color-border)' }}>
               <th style={th}>Contacte</th>
               <th style={th}>Telèfon</th>
-              <th
-                style={{ ...th, cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => onSort('current_stage_entered_at')}
-              >
-                Pipeline · Etapa{sortIcon('current_stage_entered_at')}
-              </th>
+              <SortableTh field="current_stage_entered_at" sortField={sortField} sortDir={sortDir} onSort={onSort}>
+                Pipeline · Etapa
+              </SortableTh>
               <th style={th}>Responsable</th>
               {propColumns.map((key) => (
                 <th
@@ -895,12 +889,9 @@ function ListView({
                   {defFor(key)?.label ?? key}
                 </th>
               ))}
-              <th
-                style={{ ...th, cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => onSort('created_at')}
-              >
-                Creat{sortIcon('created_at')}
-              </th>
+              <SortableTh field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}>
+                Creat
+              </SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -1310,5 +1301,36 @@ function PropertyInput({
       onChange={(e) => onChange(e.target.value)}
       style={style}
     />
+  );
+}
+
+// ─── Sortable header ──────────────────────────────────────────────────────────
+
+function SortableTh({
+  field,
+  sortField,
+  sortDir,
+  onSort,
+  children,
+}: {
+  field: string;
+  sortField: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: string) => void;
+  children: React.ReactNode;
+}) {
+  const isActive = sortField === field;
+  return (
+    <th
+      onClick={() => onSort(field)}
+      style={{
+        padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600,
+        color: isActive ? 'var(--color-primary)' : '#555',
+        whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
+      }}
+    >
+      {children}
+      {isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}
+    </th>
   );
 }
