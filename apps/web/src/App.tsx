@@ -17,6 +17,8 @@ import FormsListPage from './pages/FormsListPage.js';
 import FormEditorPage from './pages/FormEditorPage.js';
 import FormSubmissionsPage from './pages/FormSubmissionsPage.js';
 import FormEmbedPage from './pages/FormEmbedPage.js';
+import ListsIndexPage from './pages/ListsIndexPage.js';
+import ListDetailPage from './pages/ListDetailPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -145,6 +147,22 @@ export default function App() {
             }
           />
           <Route path="/forms/embed/:id" element={<FormEmbedPage />} />
+          <Route
+            path="/lists"
+            element={
+              <ProtectedRoute>
+                <ListsIndexPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lists/:id"
+            element={
+              <ProtectedRoute>
+                <ListDetailPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/" element={<Navigate to="/contacts" replace />} />
           <Route path="*" element={<Navigate to="/contacts" replace />} />
         </Routes>
