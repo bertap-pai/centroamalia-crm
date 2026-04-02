@@ -49,6 +49,16 @@ interface SavedView {
 // Default columns shown in the table (keys of property values; base fields handled separately)
 const DEFAULT_PROP_COLUMNS = ['servei_interes', 'last_lead_source'];
 
+const CONTACT_FIXED_COLS: Array<{ key: string; label: string; sortField?: string }> = [
+  { key: '_nom',     label: 'Nom',     sortField: 'first_name' },
+  { key: '_telefon', label: 'Telèfon', sortField: 'phone_e164' },
+  { key: '_email',   label: 'Email',   sortField: 'email' },
+  { key: '_creat',   label: 'Creat',   sortField: 'created_at' },
+];
+const CONTACT_FIXED_KEYS = new Set(CONTACT_FIXED_COLS.map((c) => c.key));
+
+const DEFAULT_ALL_COLUMNS = ['_nom', '_telefon', '_email', ...DEFAULT_PROP_COLUMNS, '_creat'];
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ContactsListPage() {
@@ -61,7 +71,7 @@ export default function ContactsListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [propColumns, setPropColumns] = useState<string[]>(DEFAULT_PROP_COLUMNS);
+  const [allColumns, setAllColumns] = useState<string[]>(DEFAULT_ALL_COLUMNS);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [propertyDefs, setPropertyDefs] = useState<PropertyDef[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
@@ -87,6 +97,9 @@ export default function ContactsListPage() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const dragColRef = useRef<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  // Derived: prop-only keys (fixed keys excluded)
+  const propColumns = allColumns.filter((k) => !CONTACT_FIXED_KEYS.has(k));
 
   // Load property defs + saved views once
   useEffect(() => {
@@ -138,11 +151,11 @@ export default function ContactsListPage() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedSearch, includeArchived, page, propColumns, createdFrom, createdTo, propFilters, sortField, sortDir]);
+  }, [debouncedSearch, includeArchived, page, allColumns, createdFrom, createdTo, propFilters, sortField, sortDir]);
 
   function applyView(view: SavedView) {
     setActiveViewId(view.id);
-    if (view.config.columns) setPropColumns(view.config.columns);
+    if (view.config.columns) setAllColumns(view.config.columns);
     if (view.config.sort) setSortField(view.config.sort);
     if (view.config.sortDir) setSortDir(view.config.sortDir);
     if (view.config.filters) {
@@ -159,7 +172,7 @@ export default function ContactsListPage() {
       const view = await api.post('/api/saved-views', {
         name: viewName.trim(),
         objectType: 'contact',
-        config: { columns: propColumns, sort: sortField, sortDir },
+        config: { columns: allColumns, sort: sortField, sortDir },
         isTeam,
       });
       setSavedViews((prev) => [...prev, view]);
@@ -289,7 +302,19 @@ export default function ContactsListPage() {
               <ColumnPicker
                 defs={propertyDefs.filter((d) => !['first_name','last_name','email','phone_e164'].includes(d.key))}
                 selected={propColumns}
-                onChange={(cols) => { setPropColumns(cols); setShowColumnPicker(false); }}
+                onChange={(newPropCols) => {
+                  // Rebuild allColumns: keep fixed cols in current position, replace dynamic portion
+                  setAllColumns((prev) => {
+                    // Remove any prop keys no longer selected
+                    const filtered = prev.filter((k) => CONTACT_FIXED_KEYS.has(k) || newPropCols.includes(k));
+                    // Append newly added prop keys before _creat
+                    const creatIdx = filtered.indexOf('_creat');
+                    const ins = creatIdx >= 0 ? creatIdx : filtered.length;
+                    const added = newPropCols.filter((k) => !filtered.includes(k));
+                    return [...filtered.slice(0, ins), ...added, ...filtered.slice(ins)];
+                  });
+                  setShowColumnPicker(false);
+                }}
                 onClose={() => setShowColumnPicker(false)}
               />
             )}
@@ -444,7 +469,7 @@ export default function ContactsListPage() {
           }}
         >
           <button
-            onClick={() => { setActiveViewId(null); setPropColumns(DEFAULT_PROP_COLUMNS); setSearch(''); setPage(1); }}
+            onClick={() => { setActiveViewId(null); setAllColumns(DEFAULT_ALL_COLUMNS); setSearch(''); setPage(1); }}
             style={tabStyle(activeViewId === null)}
           >
             Tots
@@ -484,38 +509,23 @@ export default function ContactsListPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                <SortableTh field="first_name" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Nom</SortableTh>
-                <SortableTh field="phone_e164" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Telèfon</SortableTh>
-                <SortableTh field="email" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Email</SortableTh>
-                {propColumns.map((key) => (
-                  <th
-                    key={key}
-                    draggable
-                    onDragStart={() => { dragColRef.current = key; }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                      const from = dragColRef.current;
-                      dragColRef.current = null;
-                      if (!from || from === key) return;
-                      const cols = [...propColumns];
-                      const fi = cols.indexOf(from);
-                      const ti = cols.indexOf(key);
-                      if (fi === -1 || ti === -1) return;
-                      cols.splice(fi, 1);
-                      cols.splice(ti, 0, from);
-                      setPropColumns(cols);
-                    }}
-                    style={{
-                      padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700,
-                      color: '#888', textTransform: 'uppercase', letterSpacing: 0.5,
-                      background: '#f9f9f9', borderBottom: '1px solid var(--color-border)',
-                      position: 'sticky', top: 0, cursor: 'grab', userSelect: 'none',
-                    }}
-                  >
-                    {propLabel(key)}
-                  </th>
-                ))}
-                <SortableTh field="created_at" sortField={sortField} sortDir={sortDir} onSort={handleSort}>Creat</SortableTh>
+                {allColumns.map((key) => {
+                  const fixed = CONTACT_FIXED_COLS.find((c) => c.key === key);
+                  return (
+                    <ColTh
+                      key={key}
+                      colKey={key}
+                      label={fixed ? fixed.label : propLabel(key)}
+                      sortField={fixed?.sortField}
+                      activeSortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      allColumns={allColumns}
+                      setAllColumns={setAllColumns}
+                      dragColRef={dragColRef}
+                    />
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -531,16 +541,21 @@ export default function ContactsListPage() {
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#fafafa'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ''; }}
                 >
-                  <Td>
-                    <span style={{ fontWeight: 500 }}>{displayName(c)}</span>
-                    {c.archivedAt && <span style={{ marginLeft: 6, fontSize: 10, color: '#999', background: '#eee', borderRadius: 3, padding: '1px 4px' }}>arxivat</span>}
-                  </Td>
-                  <Td>{c.phoneE164 ?? '—'}</Td>
-                  <Td>{c.email ?? '—'}</Td>
-                  {propColumns.map((key) => (
-                    <Td key={key}>{c.properties[key] ? propOptionLabel(key, c.properties[key]) : '—'}</Td>
-                  ))}
-                  <Td>{fmtDate(c.createdAt)}</Td>
+                  {allColumns.map((key) => {
+                    const isFixed = CONTACT_FIXED_KEYS.has(key);
+                    if (isFixed) {
+                      if (key === '_nom') return (
+                        <Td key={key}>
+                          <span style={{ fontWeight: 500 }}>{displayName(c)}</span>
+                          {c.archivedAt && <span style={{ marginLeft: 6, fontSize: 10, color: '#999', background: '#eee', borderRadius: 3, padding: '1px 4px' }}>arxivat</span>}
+                        </Td>
+                      );
+                      if (key === '_telefon') return <Td key={key}>{c.phoneE164 ?? '—'}</Td>;
+                      if (key === '_email') return <Td key={key}>{c.email ?? '—'}</Td>;
+                      if (key === '_creat') return <Td key={key}>{fmtDate(c.createdAt)}</Td>;
+                    }
+                    return <Td key={key}>{c.properties[key] ? propOptionLabel(key, c.properties[key]) : '—'}</Td>;
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -659,33 +674,56 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SortableTh({
-  field,
-  sortField,
-  sortDir,
-  onSort,
-  children,
+function ColTh({
+  colKey, label, sortField, activeSortField, sortDir, onSort, allColumns, setAllColumns, dragColRef,
 }: {
-  field: string;
-  sortField: string;
+  colKey: string;
+  label: string;
+  sortField?: string;
+  activeSortField: string;
   sortDir: 'asc' | 'desc';
-  onSort: (field: string) => void;
-  children: React.ReactNode;
+  onSort: (f: string) => void;
+  allColumns: string[];
+  setAllColumns: React.Dispatch<React.SetStateAction<string[]>>;
+  dragColRef: React.MutableRefObject<string | null>;
 }) {
-  const isActive = sortField === field;
+  const isActive = !!sortField && activeSortField === sortField;
+
+  function handleDragStart() { dragColRef.current = colKey; }
+  function handleDrop() {
+    const from = dragColRef.current;
+    dragColRef.current = null;
+    if (!from || from === colKey) return;
+    setAllColumns((prev) => {
+      const cols = [...prev];
+      const fi = cols.indexOf(from);
+      const ti = cols.indexOf(colKey);
+      if (fi === -1 || ti === -1) return prev;
+      cols.splice(fi, 1);
+      cols.splice(ti, 0, from);
+      return cols;
+    });
+  }
+
   return (
     <th
-      onClick={() => onSort(field)}
+      draggable
+      onDragStart={handleDragStart}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      onClick={sortField ? () => onSort(sortField) : undefined}
       style={{
         padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700,
-        color: isActive ? 'var(--color-primary)' : '#888',
         textTransform: 'uppercase', letterSpacing: 0.5,
         background: '#f9f9f9', borderBottom: '1px solid var(--color-border)',
-        position: 'sticky', top: 0, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+        position: 'sticky', top: 0,
+        cursor: sortField ? 'pointer' : 'grab',
+        userSelect: 'none', whiteSpace: 'nowrap',
+        color: isActive ? 'var(--color-primary)' : '#888',
       }}
     >
-      {children}
-      {isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}
+      {label}
+      {sortField ? (isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕') : ''}
     </th>
   );
 }

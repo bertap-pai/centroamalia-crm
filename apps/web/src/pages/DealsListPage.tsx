@@ -92,6 +92,17 @@ interface KanbanStage extends Stage {
 
 type ViewMode = 'list' | 'kanban';
 
+const DEAL_FIXED_COLS: Array<{ key: string; label: string; sortField?: string }> = [
+  { key: '_contacte',    label: 'Contacte',        sortField: 'contact_first_name' },
+  { key: '_telefon',     label: 'Telèfon',          sortField: 'contact_phone_e164' },
+  { key: '_etapa',       label: 'Pipeline · Etapa', sortField: 'current_stage_entered_at' },
+  { key: '_responsable', label: 'Responsable',      sortField: 'owner_name' },
+  { key: '_creat',       label: 'Creat',            sortField: 'created_at' },
+];
+const DEAL_FIXED_KEYS = new Set(DEAL_FIXED_COLS.map((c) => c.key));
+
+const DEFAULT_DEAL_COLUMNS = DEAL_FIXED_COLS.map((c) => c.key);
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DealsListPage() {
@@ -126,7 +137,7 @@ export default function DealsListPage() {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 50;
-  const [propColumns, setPropColumns] = useState<string[]>([]);
+  const [allColumns, setAllColumns] = useState<string[]>(DEFAULT_DEAL_COLUMNS);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(false);
 
@@ -149,6 +160,9 @@ export default function DealsListPage() {
   } | null>(null);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Derived: prop-only keys (fixed keys excluded)
+  const propColumns = allColumns.filter((k) => !DEAL_FIXED_KEYS.has(k));
 
   // Load pipelines + property defs + users + saved views once
   useEffect(() => {
@@ -216,7 +230,7 @@ export default function DealsListPage() {
         }
       });
     return () => { cancelled = true; };
-  }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, propColumns,
+  }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, allColumns,
       filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters, sortField, sortDir]);
 
   function buildKanbanParams() {
@@ -289,7 +303,7 @@ export default function DealsListPage() {
 
   function applyView(view: SavedView) {
     setActiveViewId(view.id);
-    if (view.config.columns) setPropColumns(view.config.columns);
+    setAllColumns(view.config.columns ?? DEFAULT_DEAL_COLUMNS);
     if (view.config.sort) setSortField(view.config.sort);
     if (view.config.sortDir) setSortDir(view.config.sortDir);
     if (view.config.viewMode) setViewMode(view.config.viewMode);
@@ -312,7 +326,7 @@ export default function DealsListPage() {
         name: viewName.trim(),
         objectType: 'deal',
         config: {
-          columns: propColumns,
+          columns: allColumns,
           sort: sortField,
           sortDir,
           viewMode,
@@ -491,7 +505,7 @@ export default function DealsListPage() {
                 padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#555',
               }}
             >
-              Columnes ({propColumns.length})
+              Columnes ({allColumns.length})
             </button>
             {showColumnPicker && (
               <div
@@ -510,9 +524,16 @@ export default function DealsListPage() {
                       type="checkbox"
                       checked={propColumns.includes(def.key)}
                       onChange={(e) => {
-                        setPropColumns(e.target.checked
-                          ? [...propColumns, def.key]
-                          : propColumns.filter((k) => k !== def.key));
+                        const key = def.key;
+                        setAllColumns((prev) => {
+                          if (e.target.checked) {
+                            if (prev.includes(key)) return prev;
+                            const creatIdx = prev.indexOf('_creat');
+                            const ins = creatIdx >= 0 ? creatIdx : prev.length;
+                            return [...prev.slice(0, ins), key, ...prev.slice(ins)];
+                          }
+                          return prev.filter((k) => k !== key);
+                        });
                       }}
                     />
                     {def.label}
@@ -582,7 +603,7 @@ export default function DealsListPage() {
           }}
         >
           <button
-            onClick={() => { setActiveViewId(null); setPropColumns([]); setSortField('created_at'); setSortDir('desc'); setPage(1); }}
+            onClick={() => { setActiveViewId(null); setAllColumns(DEFAULT_DEAL_COLUMNS); setSortField('created_at'); setSortDir('desc'); setPage(1); }}
             style={{ padding: '6px 12px', borderRadius: '6px 6px 0 0', fontSize: 12, cursor: 'pointer', border: 'none', background: activeViewId === null ? 'var(--color-primary)' : 'transparent', color: activeViewId === null ? '#fff' : '#666', fontWeight: activeViewId === null ? 600 : 400 }}
           >
             Tots
@@ -763,7 +784,8 @@ export default function DealsListPage() {
             total={total}
             page={page}
             pageSize={pageSize}
-            propColumns={propColumns}
+            allColumns={allColumns}
+            setAllColumns={setAllColumns}
             propertyDefs={propertyDefs}
             sortField={sortField}
             sortDir={sortDir}
@@ -772,7 +794,6 @@ export default function DealsListPage() {
               else { setSortField(field); setSortDir('desc'); }
               setPage(1);
             }}
-            onReorderColumns={setPropColumns}
             onPageChange={setPage}
             onDealClick={(id) => navigate(`/deals/${id}`)}
             fmtDate={fmtDate}
@@ -818,8 +839,8 @@ export default function DealsListPage() {
 // ─── List View ────────────────────────────────────────────────────────────────
 
 function ListView({
-  deals, loading, error, total, page, pageSize, propColumns, propertyDefs,
-  sortField, sortDir, onSort, onReorderColumns,
+  deals, loading, error, total, page, pageSize, allColumns, setAllColumns, propertyDefs,
+  sortField, sortDir, onSort,
   onPageChange, onDealClick, fmtDate, dealName,
 }: {
   deals: Deal[];
@@ -828,12 +849,12 @@ function ListView({
   total: number;
   page: number;
   pageSize: number;
-  propColumns: string[];
+  allColumns: string[];
+  setAllColumns: React.Dispatch<React.SetStateAction<string[]>>;
   propertyDefs: PropertyDef[];
   sortField: string;
   sortDir: 'asc' | 'desc';
   onSort: (field: string) => void;
-  onReorderColumns: (cols: string[]) => void;
   onPageChange: (p: number) => void;
   onDealClick: (id: string) => void;
   fmtDate: (s: string | null) => string;
@@ -841,26 +862,10 @@ function ListView({
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const defFor = (key: string) => propertyDefs.find((d) => d.key === key);
+  const propColumns = allColumns.filter((k) => !DEAL_FIXED_KEYS.has(k));
 
   // Column drag state (refs, no re-render needed)
   const dragColRef = useRef<string | null>(null);
-
-  function handleColDragStart(key: string) {
-    dragColRef.current = key;
-  }
-
-  function handleColDrop(targetKey: string) {
-    const from = dragColRef.current;
-    dragColRef.current = null;
-    if (!from || from === targetKey) return;
-    const cols = [...propColumns];
-    const fi = cols.indexOf(from);
-    const ti = cols.indexOf(targetKey);
-    if (fi === -1 || ti === -1) return;
-    cols.splice(fi, 1);
-    cols.splice(ti, 0, from);
-    onReorderColumns(cols);
-  }
 
   if (loading) return <div style={{ padding: 48, color: '#999', textAlign: 'center' }}>Carregant...</div>;
   if (error) return <div style={{ padding: 48, color: 'var(--color-error)', textAlign: 'center' }}>{error}</div>;
@@ -871,39 +876,29 @@ function ListView({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#f9f9f9', borderBottom: '1px solid var(--color-border)' }}>
-              <SortableTh field="contact_first_name" sortField={sortField} sortDir={sortDir} onSort={onSort}>
-                Contacte
-              </SortableTh>
-              <SortableTh field="contact_phone_e164" sortField={sortField} sortDir={sortDir} onSort={onSort}>
-                Telèfon
-              </SortableTh>
-              <SortableTh field="current_stage_entered_at" sortField={sortField} sortDir={sortDir} onSort={onSort}>
-                Pipeline · Etapa
-              </SortableTh>
-              <SortableTh field="owner_name" sortField={sortField} sortDir={sortDir} onSort={onSort}>
-                Responsable
-              </SortableTh>
-              {propColumns.map((key) => (
-                <th
-                  key={key}
-                  draggable
-                  onDragStart={() => handleColDragStart(key)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleColDrop(key)}
-                  style={{ ...th, cursor: 'grab', userSelect: 'none' }}
-                >
-                  {defFor(key)?.label ?? key}
-                </th>
-              ))}
-              <SortableTh field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}>
-                Creat
-              </SortableTh>
+              {allColumns.map((key) => {
+                const fixed = DEAL_FIXED_COLS.find((c) => c.key === key);
+                return (
+                  <ColTh
+                    key={key}
+                    colKey={key}
+                    label={fixed ? fixed.label : (defFor(key)?.label ?? key)}
+                    sortField={fixed?.sortField}
+                    activeSortField={sortField}
+                    sortDir={sortDir}
+                    onSort={onSort}
+                    allColumns={allColumns}
+                    setAllColumns={setAllColumns}
+                    dragColRef={dragColRef}
+                  />
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {deals.length === 0 ? (
               <tr>
-                <td colSpan={5 + propColumns.length} style={{ padding: '32px 16px', color: '#999', textAlign: 'center' }}>
+                <td colSpan={allColumns.length} style={{ padding: '32px 16px', color: '#999', textAlign: 'center' }}>
                   Cap deal trobat.
                 </td>
               </tr>
@@ -916,25 +911,31 @@ function ListView({
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#f9f9f9')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                 >
-                  <td style={td}>
-                    <span style={{ fontWeight: 500 }}>{dealName(d)}</span>
-                    {d.isClosedWon && <span style={{ marginLeft: 6, fontSize: 11, color: '#27ae60', fontWeight: 600 }}>Won</span>}
-                    {d.isClosedLost && <span style={{ marginLeft: 6, fontSize: 11, color: '#e74c3c', fontWeight: 600 }}>Lost</span>}
-                    {d.archivedAt && <span style={{ marginLeft: 6, fontSize: 10, background: '#eee', color: '#888', borderRadius: 3, padding: '1px 4px' }}>Arxivat</span>}
-                  </td>
-                  <td style={{ ...td, color: '#666' }}>{d.primaryContact?.phoneE164 ?? '—'}</td>
-                  <td style={td}>
-                    <span style={{ color: '#888' }}>{d.pipelineName}</span>
-                    <span style={{ color: '#ccc', margin: '0 4px' }}>·</span>
-                    {d.stageName}
-                  </td>
-                  <td style={{ ...td, color: '#666' }}>{d.ownerName ?? '—'}</td>
-                  {propColumns.map((key) => (
-                    <td key={key} style={{ ...td, color: '#666' }}>
-                      {d.properties[key] ? formatPropValue(key, d.properties[key], defFor(key)) : '—'}
-                    </td>
-                  ))}
-                  <td style={{ ...td, color: '#999', whiteSpace: 'nowrap' }}>{fmtDate(d.createdAt)}</td>
+                  {allColumns.map((key) => {
+                    if (key === '_contacte') return (
+                      <td key={key} style={td}>
+                        <span style={{ fontWeight: 500 }}>{dealName(d)}</span>
+                        {d.isClosedWon && <span style={{ marginLeft: 6, fontSize: 11, color: '#27ae60', fontWeight: 600 }}>Won</span>}
+                        {d.isClosedLost && <span style={{ marginLeft: 6, fontSize: 11, color: '#e74c3c', fontWeight: 600 }}>Lost</span>}
+                        {d.archivedAt && <span style={{ marginLeft: 6, fontSize: 10, background: '#eee', color: '#888', borderRadius: 3, padding: '1px 4px' }}>Arxivat</span>}
+                      </td>
+                    );
+                    if (key === '_telefon') return <td key={key} style={{ ...td, color: '#666' }}>{d.primaryContact?.phoneE164 ?? '—'}</td>;
+                    if (key === '_etapa') return (
+                      <td key={key} style={td}>
+                        <span style={{ color: '#888' }}>{d.pipelineName}</span>
+                        <span style={{ color: '#ccc', margin: '0 4px' }}>·</span>
+                        {d.stageName}
+                      </td>
+                    );
+                    if (key === '_responsable') return <td key={key} style={{ ...td, color: '#666' }}>{d.ownerName ?? '—'}</td>;
+                    if (key === '_creat') return <td key={key} style={{ ...td, color: '#999', whiteSpace: 'nowrap' }}>{fmtDate(d.createdAt)}</td>;
+                    return (
+                      <td key={key} style={{ ...td, color: '#666' }}>
+                        {d.properties[key] ? formatPropValue(key, d.properties[key], defFor(key)) : '—'}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             )}
@@ -1310,33 +1311,55 @@ function PropertyInput({
   );
 }
 
-// ─── Sortable header ──────────────────────────────────────────────────────────
+// ─── ColTh ────────────────────────────────────────────────────────────────────
 
-function SortableTh({
-  field,
-  sortField,
-  sortDir,
-  onSort,
-  children,
+function ColTh({
+  colKey, label, sortField, activeSortField, sortDir, onSort, allColumns, setAllColumns, dragColRef,
 }: {
-  field: string;
-  sortField: string;
+  colKey: string;
+  label: string;
+  sortField?: string;
+  activeSortField: string;
   sortDir: 'asc' | 'desc';
-  onSort: (field: string) => void;
-  children: React.ReactNode;
+  onSort: (f: string) => void;
+  allColumns: string[];
+  setAllColumns: React.Dispatch<React.SetStateAction<string[]>>;
+  dragColRef: React.MutableRefObject<string | null>;
 }) {
-  const isActive = sortField === field;
+  const isActive = !!sortField && activeSortField === sortField;
+
+  function handleDragStart() { dragColRef.current = colKey; }
+  function handleDrop() {
+    const from = dragColRef.current;
+    dragColRef.current = null;
+    if (!from || from === colKey) return;
+    setAllColumns((prev) => {
+      const cols = [...prev];
+      const fi = cols.indexOf(from);
+      const ti = cols.indexOf(colKey);
+      if (fi === -1 || ti === -1) return prev;
+      cols.splice(fi, 1);
+      cols.splice(ti, 0, from);
+      return cols;
+    });
+  }
+
   return (
     <th
-      onClick={() => onSort(field)}
+      draggable
+      onDragStart={handleDragStart}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      onClick={sortField ? () => onSort(sortField) : undefined}
       style={{
         padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600,
+        whiteSpace: 'nowrap', userSelect: 'none',
+        cursor: sortField ? 'pointer' : 'grab',
         color: isActive ? 'var(--color-primary)' : '#555',
-        whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
       }}
     >
-      {children}
-      {isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}
+      {label}
+      {sortField ? (isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕') : ''}
     </th>
   );
 }
