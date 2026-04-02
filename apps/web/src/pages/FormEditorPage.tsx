@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.js';
 
-type FieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox';
+type FieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox' | 'static_text';
 
 interface FieldOption {
   key: string;
@@ -40,7 +40,12 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   textarea: 'Text llarg',
   select: 'Desplegable',
   checkbox: 'Casella',
+  static_text: 'Text estàtic',
 };
+
+function getOption(options: FieldOption[], key: string, fallback: string): string {
+  return options.find((o) => o.key === key)?.label ?? fallback;
+}
 
 
 function makeKey(label: string): string {
@@ -418,7 +423,7 @@ function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
         ))}
       </select>
 
-      {(field.type !== 'checkbox') && (
+      {(field.type !== 'checkbox' && field.type !== 'static_text') && (
         <>
           <Label>Placeholder</Label>
           <input
@@ -439,50 +444,86 @@ function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
-        <input
-          type="checkbox"
-          id="required"
-          checked={field.isRequired}
-          disabled={!isAdmin}
-          onChange={(e) => onChange({ isRequired: e.target.checked })}
-          style={{ width: 16, height: 16, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
-        />
-        <label htmlFor="required" style={{ fontSize: 13, color: '#444', cursor: isAdmin ? 'pointer' : 'default' }}>
-          Camp obligatori
-        </label>
-      </div>
+      {field.type === 'static_text' ? (
+        <div style={{ marginTop: 16 }}>
+          <Label>Mida del text</Label>
+          <select
+            value={getOption(field.options, 'preset', 'normal')}
+            disabled={!isAdmin}
+            onChange={(e) => {
+              const updated = field.options.filter((o) => o.key !== 'preset');
+              onChange({ options: [...updated, { key: 'preset', label: e.target.value }] });
+            }}
+            style={{ ...inputStyle, width: '100%' }}
+          >
+            <option value="normal">Normal</option>
+            <option value="heading">Títol (gran)</option>
+            <option value="caption">Subtítol (petit)</option>
+          </select>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
-        <input
-          type="checkbox"
-          id="visible"
-          checked={field.isVisible}
-          disabled={!isAdmin}
-          onChange={(e) => onChange({ isVisible: e.target.checked })}
-          style={{ width: 16, height: 16, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
-        />
-        <label htmlFor="visible" style={{ fontSize: 13, color: '#444', cursor: isAdmin ? 'pointer' : 'default' }}>
-          Visible per al client
-        </label>
-      </div>
-
-      <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--color-border)' }}>
-        <Label>Mapatge CRM</Label>
-        <select
-          value={field.crmPropertyKey}
-          disabled={!isAdmin}
-          onChange={(e) => onChange({ crmPropertyKey: e.target.value })}
-          style={{ ...inputStyle, width: '100%' }}
-        >
-          {crmProperties.map((k) => (
-            <option key={k.key} value={k.key}>{k.label}</option>
-          ))}
-        </select>
-        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-          Vincular el valor d'aquest camp a un atribut del contacte al CRM.
+          <Label>Color del text</Label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="color"
+              value={getOption(field.options, 'color', '#333333')}
+              disabled={!isAdmin}
+              onChange={(e) => {
+                const updated = field.options.filter((o) => o.key !== 'color');
+                onChange({ options: [...updated, { key: 'color', label: e.target.value }] });
+              }}
+              style={{ width: 40, height: 32, padding: 2, border: '1px solid var(--color-border)', borderRadius: 4, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+            />
+            <span style={{ fontSize: 12, color: '#888' }}>{getOption(field.options, 'color', '#333333')}</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+            <input
+              type="checkbox"
+              id="required"
+              checked={field.isRequired}
+              disabled={!isAdmin}
+              onChange={(e) => onChange({ isRequired: e.target.checked })}
+              style={{ width: 16, height: 16, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+            />
+            <label htmlFor="required" style={{ fontSize: 13, color: '#444', cursor: isAdmin ? 'pointer' : 'default' }}>
+              Camp obligatori
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+            <input
+              type="checkbox"
+              id="visible"
+              checked={field.isVisible}
+              disabled={!isAdmin}
+              onChange={(e) => onChange({ isVisible: e.target.checked })}
+              style={{ width: 16, height: 16, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+            />
+            <label htmlFor="visible" style={{ fontSize: 13, color: '#444', cursor: isAdmin ? 'pointer' : 'default' }}>
+              Visible per al client
+            </label>
+          </div>
+
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--color-border)' }}>
+            <Label>Mapatge CRM</Label>
+            <select
+              value={field.crmPropertyKey}
+              disabled={!isAdmin}
+              onChange={(e) => onChange({ crmPropertyKey: e.target.value })}
+              style={{ ...inputStyle, width: '100%' }}
+            >
+              {crmProperties.map((k) => (
+                <option key={k.key} value={k.key}>{k.label}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+              Vincular el valor d'aquest camp a un atribut del contacte al CRM.
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -530,11 +571,19 @@ function FormPreview({ form }: { form: FormData }) {
       {form.description && <p style={{ margin: '0 0 24px', color: '#666', fontSize: 14 }}>{form.description}</p>}
       {form.fields.filter((f) => f.isVisible).map((field, idx) => (
         <div key={idx} style={{ marginBottom: 18 }}>
-          <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 6 }}>
-            {field.label || `Camp ${idx + 1}`}
-            {field.isRequired && <span style={{ color: 'var(--color-primary)', marginLeft: 3 }}>*</span>}
-          </label>
-          {field.type === 'textarea' ? (
+          {field.type !== 'static_text' && (
+            <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 6 }}>
+              {field.label || `Camp ${idx + 1}`}
+              {field.isRequired && <span style={{ color: 'var(--color-primary)', marginLeft: 3 }}>*</span>}
+            </label>
+          )}
+          {field.type === 'static_text' ? (() => {
+            const preset = getOption(field.options, 'preset', 'normal');
+            const color = getOption(field.options, 'color', '#333');
+            if (preset === 'heading') return <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color }}>{field.label || `Camp ${idx + 1}`}</h2>;
+            if (preset === 'caption') return <p style={{ margin: '0 0 4px', fontSize: 12, color, opacity: 0.75 }}>{field.label || `Camp ${idx + 1}`}</p>;
+            return <p style={{ margin: '0 0 4px', fontSize: 14, color }}>{field.label || `Camp ${idx + 1}`}</p>;
+          })() : field.type === 'textarea' ? (
             <textarea
               placeholder={field.placeholder}
               rows={4}
