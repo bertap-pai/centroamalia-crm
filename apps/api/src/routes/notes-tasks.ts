@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, and, isNull, gte, lte, desc, inArray } from 'drizzle-orm';
+import { eq, and, isNull, gte, lte, asc, desc, inArray } from 'drizzle-orm';
 import { notes, tasks, users, contacts, deals } from '@crm/db';
 
 export default async function notesTasksRoutes(app: FastifyInstance) {
@@ -96,7 +96,7 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
   // List tasks — filtered by object when objectType+objectId provided, or all tasks otherwise
   app.get('/api/tasks', { preHandler: app.requireAuth }, async (req, reply) => {
     const q = req.query as Record<string, string>;
-    const { objectType, objectId, status, assignedToUserId, dueDateFrom, dueDateTo } = q;
+    const { objectType, objectId, status, assignedToUserId, dueDateFrom, dueDateTo, sortBy, sortDir } = q;
 
     // If filtering by object, both params are required (unless standalone objectType filter)
     if (objectId && !objectType) {
@@ -126,11 +126,15 @@ export default async function notesTasksRoutes(app: FastifyInstance) {
       conditions.push(lte(tasks.dueAt, new Date(dueDateTo)));
     }
 
+    const colMap = { due_at: tasks.dueAt, title: tasks.title, created_at: tasks.createdAt };
+    const sortCol = colMap[sortBy as keyof typeof colMap] ?? tasks.createdAt;
+    const sortOrder = sortDir === 'asc' ? asc(sortCol) : desc(sortCol);
+
     const rows = await app.db
       .select()
       .from(tasks)
       .where(and(...conditions))
-      .orderBy(desc(tasks.createdAt));
+      .orderBy(sortOrder);
 
     // Attach assignee names
     const assigneeIds = [...new Set(rows.flatMap((r) => r.assignedToUserId ? [r.assignedToUserId] : []))];
