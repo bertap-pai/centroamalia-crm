@@ -25,6 +25,12 @@ interface FormData {
   status: string;
   submitLabel: string;
   successMessage: string;
+  buttonStyle: {
+    background: string;
+    color: string;
+    borderRadius: number;
+    fontSize: number;
+  };
   fields: FormField[];
 }
 
@@ -228,12 +234,12 @@ export default function FormEmbedPage() {
           disabled={submitting}
           style={{
             marginTop: 8,
-            background: '#e87d52',
-            color: '#fff',
+            background: form.buttonStyle?.background ?? '#e87d52',
+            color: form.buttonStyle?.color ?? '#fff',
             border: 'none',
-            borderRadius: 6,
+            borderRadius: form.buttonStyle?.borderRadius ?? 6,
             padding: '11px 24px',
-            fontSize: 14,
+            fontSize: form.buttonStyle?.fontSize ?? 14,
             fontWeight: 600,
             cursor: submitting ? 'not-allowed' : 'pointer',
             opacity: submitting ? 0.7 : 1,
