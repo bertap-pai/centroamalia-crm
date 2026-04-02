@@ -132,7 +132,7 @@ export default async function formsRoutes(app: FastifyInstance) {
       fields?: Array<{
         key: string;
         label: string;
-        type: 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox';
+        type: 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox' | 'static_text';
         placeholder?: string;
         isRequired?: boolean;
         position?: number;
