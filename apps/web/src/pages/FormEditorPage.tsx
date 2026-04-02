@@ -30,6 +30,12 @@ interface FormData {
   status: 'draft' | 'active' | 'paused' | 'archived';
   submitLabel: string;
   successMessage: string;
+  buttonStyle: {
+    background: string;
+    color: string;
+    borderRadius: number;
+    fontSize: number;
+  };
   fields: FormField[];
 }
 
@@ -102,6 +108,7 @@ export default function FormEditorPage() {
         setForm({
           ...data,
           description: data.description ?? '',
+          buttonStyle: data.buttonStyle ?? { background: '#e87d52', color: '#ffffff', borderRadius: 6, fontSize: 14 },
           fields: (data.fields ?? []).map((f: any) => ({
             ...f,
             placeholder: f.placeholder ?? '',
@@ -125,11 +132,13 @@ export default function FormEditorPage() {
         status: f.status,
         submitLabel: f.submitLabel,
         successMessage: f.successMessage,
+        buttonStyle: f.buttonStyle,
         fields: f.fields.map((field, idx) => ({ ...field, position: idx })),
       });
       setForm({
         ...updated,
         description: updated.description ?? '',
+        buttonStyle: updated.buttonStyle ?? { background: '#e87d52', color: '#ffffff', borderRadius: 6, fontSize: 14 },
         fields: (updated.fields ?? []).map((fl: any) => ({
           ...fl,
           placeholder: fl.placeholder ?? '',
@@ -336,6 +345,86 @@ export default function FormEditorPage() {
                       rows={3}
                       style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
                     />
+
+                    <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--color-border)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: '#333' }}>Botó d'enviament</div>
+
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+                        <div>
+                          <Label>Color de fons</Label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="color"
+                              value={form.buttonStyle.background}
+                              disabled={!isAdmin}
+                              onChange={(e) => setForm({ ...form, buttonStyle: { ...form.buttonStyle, background: e.target.value } })}
+                              style={{ width: 40, height: 32, padding: 2, border: '1px solid var(--color-border)', borderRadius: 4, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+                            />
+                            <span style={{ fontSize: 12, color: '#888' }}>{form.buttonStyle.background}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label>Color del text</Label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="color"
+                              value={form.buttonStyle.color}
+                              disabled={!isAdmin}
+                              onChange={(e) => setForm({ ...form, buttonStyle: { ...form.buttonStyle, color: e.target.value } })}
+                              style={{ width: 40, height: 32, padding: 2, border: '1px solid var(--color-border)', borderRadius: 4, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+                            />
+                            <span style={{ fontSize: 12, color: '#888' }}>{form.buttonStyle.color}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
+                        <div>
+                          <Label>Arrodoniment (px)</Label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={form.buttonStyle.borderRadius}
+                            disabled={!isAdmin}
+                            onChange={(e) => setForm({ ...form, buttonStyle: { ...form.buttonStyle, borderRadius: Number(e.target.value) } })}
+                            style={{ ...inputStyle, width: 80 }}
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Mida de lletra (px)</Label>
+                          <input
+                            type="number"
+                            min={10}
+                            max={24}
+                            value={form.buttonStyle.fontSize}
+                            disabled={!isAdmin}
+                            onChange={(e) => setForm({ ...form, buttonStyle: { ...form.buttonStyle, fontSize: Number(e.target.value) } })}
+                            style={{ ...inputStyle, width: 80 }}
+                          />
+                        </div>
+                      </div>
+
+                      <Label>Previsualització</Label>
+                      <button
+                        disabled
+                        style={{
+                          background: form.buttonStyle.background,
+                          color: form.buttonStyle.color,
+                          border: 'none',
+                          borderRadius: form.buttonStyle.borderRadius,
+                          padding: '11px 24px',
+                          fontSize: form.buttonStyle.fontSize,
+                          fontWeight: 600,
+                          cursor: 'not-allowed',
+                          opacity: 0.9,
+                        }}
+                      >
+                        {form.submitLabel || 'Enviar'}
+                      </button>
+                    </div>
                   </div>
                   <div style={{ color: '#bbb', fontSize: 13, textAlign: 'center', paddingTop: 40 }}>
                     Selecciona un camp per editar-lo
@@ -612,7 +701,18 @@ function FormPreview({ form }: { form: FormData }) {
       ))}
       <button
         disabled
-        style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'not-allowed', opacity: 0.85, marginTop: 8 }}
+        style={{
+          background: form.buttonStyle?.background ?? 'var(--color-primary)',
+          color: form.buttonStyle?.color ?? '#fff',
+          border: 'none',
+          borderRadius: form.buttonStyle?.borderRadius ?? 6,
+          padding: '10px 20px',
+          fontSize: form.buttonStyle?.fontSize ?? 14,
+          fontWeight: 600,
+          cursor: 'not-allowed',
+          opacity: 0.85,
+          marginTop: 8,
+        }}
       >
         {form.submitLabel}
       </button>
