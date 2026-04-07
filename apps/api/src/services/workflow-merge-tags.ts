@@ -10,6 +10,7 @@ export interface MergeContext {
   workflow?: Record<string, unknown>;
   user?: Record<string, unknown>;
   centre?: Record<string, unknown>;
+  var?: Record<string, string>;  // run-scoped variables from request_ai_content steps
 }
 
 const TAG_REGEX = /\{\{([^}]+)\}\}/g;

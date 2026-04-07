@@ -402,6 +402,11 @@ async function buildMergeContext(db: Db, run: WorkflowRun): Promise<MergeContext
     };
   }
 
+  // Load run variables (populated by request_ai_content steps)
+  if (run.runVariables && typeof run.runVariables === 'object') {
+    context.var = run.runVariables as Record<string, string>;
+  }
+
   return context;
 }
 
