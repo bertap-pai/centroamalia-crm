@@ -21,6 +21,10 @@ import formsRoutes from './routes/forms.js';
 import listsRoutes from './routes/lists.js';
 import metaWebhookRoutes from './routes/webhooks/meta.js';
 import notificationsRoutes from './routes/notifications.js';
+import workflowsRoutes from './routes/workflows.js';
+import workflowEmitterPlugin from './plugins/workflow-emitter.js';
+import workflowSchedulerPlugin from './services/workflow-scheduler.js';
+import { initWorkflowEngine } from './services/workflow-engine.js';
 import { notifications } from '@crm/db';
 import { lt, sql } from 'drizzle-orm';
 
@@ -44,6 +48,7 @@ async function start() {
   await app.register(sessionPlugin);
   await app.register(oauthPlugin);
   await app.register(auditPlugin);
+  await app.register(workflowEmitterPlugin);
 
   // Auth decorators — registered after plugins so db/session are available
   app.decorate('requireAuth', requireAuth);
@@ -64,6 +69,13 @@ async function start() {
   await app.register(listsRoutes);
   await app.register(metaWebhookRoutes);
   await app.register(notificationsRoutes);
+  await app.register(workflowsRoutes);
+
+  // Initialize workflow engine (subscribes to event bus)
+  initWorkflowEngine(app.db);
+
+  // Register workflow scheduler (node-cron for wait step resumption)
+  await app.register(workflowSchedulerPlugin);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
