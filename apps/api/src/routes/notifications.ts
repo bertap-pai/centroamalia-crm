@@ -47,6 +47,8 @@ export default async function notificationsRoutes(app: FastifyInstance) {
 
     if (query.unread === 'true') {
       conditions.push(isNull(notifications.readAt));
+    } else if (query.unread === 'false') {
+      conditions.push(isNotNull(notifications.readAt));
     }
     if (query.type) {
       conditions.push(eq(notifications.type, query.type));
