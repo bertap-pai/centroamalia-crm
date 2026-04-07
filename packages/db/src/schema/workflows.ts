@@ -34,6 +34,10 @@ export const workflowTriggerTypeEnum = pgEnum('workflow_trigger_type', [
   'task_completed',
   'meeting_scheduled',
   'property_changed',
+  'time_after_event',
+  'time_before_event',
+  'scheduled_recurring',
+  'contact_anniversary',
 ]);
 
 export const workflowEnrollmentModeEnum = pgEnum('workflow_enrollment_mode', [
@@ -224,6 +228,41 @@ export const workflowSchedules = pgTable(
 
 export type WorkflowSchedule = typeof workflowSchedules.$inferSelect;
 export type NewWorkflowSchedule = typeof workflowSchedules.$inferInsert;
+
+/**
+ * Pending time-based trigger firings.
+ * Created when time_after_event base event fires; consumed by the scheduler.
+ * Also used for date-scan triggers (time_before_event, contact_anniversary) to
+ * prevent duplicate firings within the same day.
+ */
+export const workflowTriggerSchedules = pgTable(
+  'workflow_trigger_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workflowId: uuid('workflow_id')
+      .notNull()
+      .references(() => workflows.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    dealId: uuid('deal_id').references(() => deals.id, { onDelete: 'set null' }),
+    triggerAt: timestamp('trigger_at', { withTimezone: true }).notNull(),
+    triggeredAt: timestamp('triggered_at', { withTimezone: true }),
+    payload: jsonb('payload'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    triggerAtIdx: index('workflow_trigger_schedules_trigger_at_idx').on(t.triggerAt),
+    workflowContactIdx: index('workflow_trigger_schedules_wf_contact_idx').on(
+      t.workflowId,
+      t.contactId,
+    ),
+    triggeredAtIdx: index('workflow_trigger_schedules_triggered_at_idx').on(t.triggeredAt),
+  }),
+);
+
+export type WorkflowTriggerSchedule = typeof workflowTriggerSchedules.$inferSelect;
+export type NewWorkflowTriggerSchedule = typeof workflowTriggerSchedules.$inferInsert;
 
 // Contact tags table (needed for add_tag / remove_tag steps)
 export const contactTags = pgTable(
