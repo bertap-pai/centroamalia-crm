@@ -62,6 +62,9 @@ export const workflowStepTypeEnum = pgEnum('workflow_step_type', [
   'assign_owner',
   'enroll_in_workflow',
   'unenroll_from_workflow',
+  'trigger_agent',
+  'request_ai_content',
+  'ai_classify',
 ]);
 
 export const workflowRunStatusEnum = pgEnum('workflow_run_status', [
@@ -139,6 +142,7 @@ export const workflowRuns = pgTable(
     dealId: uuid('deal_id').references(() => deals.id, { onDelete: 'set null' }),
     status: workflowRunStatusEnum('status').notNull().default('running'),
     lastStepExecuted: integer('last_step_executed'),
+    runVariables: jsonb('run_variables'),
     errorMessage: text('error_message'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
