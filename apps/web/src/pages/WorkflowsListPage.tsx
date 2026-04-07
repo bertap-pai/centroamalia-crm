@@ -43,7 +43,7 @@ export default function WorkflowsListPage() {
   function load() {
     setLoading(true);
     api.get('/api/workflows')
-      .then((data) => { setItems(data); setError(''); })
+      .then((res) => { setItems(res.data ?? []); setError(''); })
       .catch(() => setError('Error carregant els workflows.'))
       .finally(() => setLoading(false));
   }
