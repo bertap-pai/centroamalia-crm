@@ -16,4 +16,10 @@ export const env = {
   PORT: parseInt(process.env['PORT'] ?? '3000', 10),
   NODE_ENV: process.env['NODE_ENV'] ?? 'development',
   COOKIE_SECURE: process.env['NODE_ENV'] === 'production',
+  // Meta Lead Ads webhook
+  META_VERIFY_TOKEN: process.env['META_VERIFY_TOKEN'] ?? '',
+  META_APP_SECRET: process.env['META_APP_SECRET'] ?? '',
+  META_PAGE_ACCESS_TOKEN: process.env['META_PAGE_ACCESS_TOKEN'] ?? '',
+  META_DEFAULT_PIPELINE_ID: process.env['META_DEFAULT_PIPELINE_ID'] ?? '',
+  META_DEFAULT_STAGE_ID: process.env['META_DEFAULT_STAGE_ID'] ?? '',
 } as const;

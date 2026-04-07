@@ -19,6 +19,7 @@ import exportRoutes from './routes/export.js';
 import usersRoutes from './routes/users.js';
 import formsRoutes from './routes/forms.js';
 import listsRoutes from './routes/lists.js';
+import metaWebhookRoutes from './routes/webhooks/meta.js';
 
 // Build logger options without optional properties set to undefined —
 // exactOptionalPropertyTypes rejects `transport: undefined`.
@@ -58,6 +59,7 @@ async function start() {
   await app.register(usersRoutes);
   await app.register(formsRoutes);
   await app.register(listsRoutes);
+  await app.register(metaWebhookRoutes);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
