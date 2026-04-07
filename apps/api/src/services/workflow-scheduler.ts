@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { eq, and, lte, isNull } from 'drizzle-orm';
-import { workflowSchedules, workflowRuns, contacts } from '@crm/db';
+import { workflowSchedules, workflowRuns, workflowEnrollments, workflowTriggerSchedules, contacts } from '@crm/db';
 import type { FilterGroup } from '@crm/db';
 import { executeRun } from './workflow-executor.js';
 import { evaluateFilters } from './workflow-filter.js';
@@ -81,8 +81,61 @@ async function workflowSchedulerPlugin(app: FastifyInstance): Promise<void> {
           );
         }
       }
+      // Also fire any due trigger schedules (time_after_event deferred entries)
+      await fireTriggerSchedules(app.db);
     } catch (err) {
       app.log.error({ err }, '[workflow-scheduler] Tick failed');
+    }
+  }
+
+  async function fireTriggerSchedules(db: FastifyInstance['db']): Promise<void> {
+    const now = new Date();
+
+    const due = await db
+      .select()
+      .from(workflowTriggerSchedules)
+      .where(
+        and(
+          lte(workflowTriggerSchedules.triggerAt, now),
+          isNull(workflowTriggerSchedules.triggeredAt),
+        ),
+      )
+      .limit(100);
+
+    for (const entry of due) {
+      try {
+        // Mark as triggered immediately to prevent duplicate processing
+        await db
+          .update(workflowTriggerSchedules)
+          .set({ triggeredAt: now })
+          .where(eq(workflowTriggerSchedules.id, entry.id));
+
+        // Record enrollment
+        await db
+          .insert(workflowEnrollments)
+          .values({ workflowId: entry.workflowId, contactId: entry.contactId })
+          .onConflictDoUpdate({
+            target: [workflowEnrollments.workflowId, workflowEnrollments.contactId],
+            set: { lastEnrolledAt: now },
+          });
+
+        // Create and execute the run
+        const [run] = await db
+          .insert(workflowRuns)
+          .values({
+            workflowId: entry.workflowId,
+            contactId: entry.contactId,
+            dealId: entry.dealId ?? null,
+            status: 'running',
+          })
+          .returning();
+
+        if (run) {
+          await executeRun(db, run.id);
+        }
+      } catch (err) {
+        console.error(`[workflow-scheduler] Failed to fire trigger schedule ${entry.id}:`, err);
+      }
     }
   }
 
