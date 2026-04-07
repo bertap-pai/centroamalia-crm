@@ -31,6 +31,7 @@ import {
   type EnrollInWorkflowConfig,
   type UnenrollFromWorkflowConfig,
 } from './step-executors/enroll-in-workflow.js';
+import { executeRequestAiContent, type RequestAiContentConfig } from './step-executors/request-ai-content.js';
 import { createNotification } from './notifications.js';
 
 // Retry schedule: 1min, 5min, 30min
@@ -340,6 +341,15 @@ async function executeSingleStep(
 
     case 'unenroll_from_workflow':
       await executeUnenrollFromWorkflow(db, run.contactId, config as unknown as UnenrollFromWorkflowConfig);
+      break;
+
+    case 'request_ai_content':
+      await executeRequestAiContent(
+        db,
+        run,
+        config as unknown as RequestAiContentConfig,
+        mergeContext,
+      );
       break;
 
     case 'branch':
