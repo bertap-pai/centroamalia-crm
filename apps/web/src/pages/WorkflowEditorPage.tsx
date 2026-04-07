@@ -52,7 +52,7 @@ const STATUS_COLOR: Record<WorkflowStatus, string> = {
   error: '#c62828',
 };
 
-type Tab = 'config' | 'executions';
+type Tab = 'config' | 'executions' | 'analytics';
 
 export default function WorkflowEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -180,7 +180,7 @@ export default function WorkflowEditorPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 24 }}>
-        {(['config', 'executions'] as Tab[]).map((t) => (
+        {(['config', 'executions', 'analytics'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -190,7 +190,7 @@ export default function WorkflowEditorPage() {
               color: tab === t ? '#1a73e8' : '#555', fontWeight: tab === t ? 600 : 400,
             }}
           >
-            {t === 'config' ? 'Configuració' : 'Execucions'}
+            {t === 'config' ? 'Configuració' : t === 'executions' ? 'Execucions' : 'Analítica'}
           </button>
         ))}
       </div>
@@ -259,6 +259,10 @@ export default function WorkflowEditorPage() {
         <ExecutionsTab workflowId={wf.id} />
       )}
 
+      {tab === 'analytics' && (
+        <AnalyticsTab workflowId={wf.id} />
+      )}
+
       {showTest && (
         <TestModeModal workflowId={wf.id} onClose={() => setShowTest(false)} />
       )}
@@ -301,6 +305,107 @@ function ExecutionsTab({ workflowId }: { workflowId: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function AnalyticsTab({ workflowId }: { workflowId: string }) {
+  const [data, setData] = useState<{
+    totalRuns: number;
+    activeRuns: number;
+    completedRuns: number;
+    failedRuns: number;
+    completionRate: number;
+    runsByDay: { date: string; count: number }[];
+    stepStats: Record<string, { ok: number; error: number }>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/api/workflows/${workflowId}/analytics`)
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [workflowId]);
+
+  if (loading) return <div style={{ color: '#888', fontSize: 13 }}>Carregant...</div>;
+  if (!data) return <div style={{ color: '#c00', fontSize: 13 }}>Error carregant analítica.</div>;
+
+  return (
+    <div style={{ fontSize: 14 }}>
+      {/* Summary cards */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Total execucions', value: data.totalRuns },
+          { label: 'Actives', value: data.activeRuns },
+          { label: 'Completades', value: data.completedRuns },
+          { label: 'Fallades', value: data.failedRuns },
+          { label: "Taxa d'èxit", value: `${data.completionRate}%` },
+        ].map((card) => (
+          <div
+            key={card.label}
+            style={{
+              background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 8,
+              padding: '12px 20px', minWidth: 120, textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{card.value}</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{card.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Runs per day (last 30 days) */}
+      {data.runsByDay.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, color: '#555' }}>Execucions — darrers 30 dies</h4>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: '#f5f5f5' }}>
+                <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>Data</th>
+                <th style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>Execucions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.runsByDay.map((row) => (
+                <tr key={row.date} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: '4px 8px' }}>{row.date}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{row.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Per-step stats */}
+      {Object.keys(data.stepStats).length > 0 && (
+        <section>
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, color: '#555' }}>Estadístiques per pas</h4>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: '#f5f5f5' }}>
+                <th style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>Tipus de pas</th>
+                <th style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#2a7a2a' }}>OK</th>
+                <th style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#c00' }}>Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(data.stepStats).map(([type, stats]) => (
+                <tr key={type} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{type}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#2a7a2a' }}>{stats.ok}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: stats.error > 0 ? '#c00' : '#888' }}>{stats.error}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {data.totalRuns === 0 && (
+        <div style={{ color: '#888', fontSize: 13 }}>Cap execució registrada per a aquest workflow.</div>
+      )}
+    </div>
   );
 }
 
