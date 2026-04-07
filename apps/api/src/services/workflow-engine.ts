@@ -3,6 +3,7 @@ import {
   workflows,
   workflowRuns,
   workflowEnrollments,
+  contacts,
   type Workflow,
   type FilterGroup,
 } from '@crm/db';
@@ -150,15 +151,38 @@ async function processEvent<E extends CrmEventType>(
 
   if (!contactId) return;
 
+  // Pre-fetch contact record for filter evaluation (only when needed)
+  let contactRecord: Record<string, unknown> | null = null;
+
   for (const workflow of activeWorkflows) {
     try {
       // 1. Check trigger config match
       if (!matchesTriggerConfig(workflow, eventType, payloadRecord)) continue;
 
-      // 2. Evaluate filters
-      // For filter evaluation, we pass the payload as context
-      // The filter evaluator supports dot notation, so flat payload works
-      if (!evaluateFilters(workflow.filters as FilterGroup | null, payloadRecord)) continue;
+      // 2. Evaluate filters — use full contact data, not just the event payload
+      if (workflow.filters) {
+        if (!contactRecord) {
+          const [row] = await db
+            .select()
+            .from(contacts)
+            .where(eq(contacts.id, contactId))
+            .limit(1);
+          contactRecord = row
+            ? {
+                first_name: row.firstName,
+                last_name: row.lastName,
+                email: row.email,
+                phone: row.phoneE164,
+                created_at: row.createdAt,
+              }
+            : {};
+        }
+        const filterContext = {
+          contact: contactRecord,
+          ...payloadRecord,
+        };
+        if (!evaluateFilters(workflow.filters as FilterGroup | null, filterContext)) continue;
+      }
 
       // 3. Check enrollment
       const canEnroll = await checkEnrollment(

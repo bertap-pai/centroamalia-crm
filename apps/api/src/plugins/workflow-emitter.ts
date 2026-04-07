@@ -120,6 +120,55 @@ async function workflowEmitterPlugin(app: FastifyInstance): Promise<void> {
         }
       }
 
+      // Deal stage changed (POST /api/deals/:id/stage)
+      if (method === 'POST' && /^\/api\/deals\/[^/]+\/stage$/.test(url)) {
+        const dealId = url.split('/')[3]!;
+        const body = req.body as Record<string, unknown> | undefined;
+        const oldDeal = (req as any).__oldDeal;
+        if (dealId && oldDeal && body?.stageId) {
+          // Look up the primary contact for this deal
+          try {
+            const { dealContacts } = await import('@crm/db');
+            const { eq, and } = await import('drizzle-orm');
+            const [primary] = await app.db
+              .select({ contactId: dealContacts.contactId })
+              .from(dealContacts)
+              .where(and(eq(dealContacts.dealId, dealId), eq(dealContacts.isPrimary, true)))
+              .limit(1);
+
+            eventBus.emit('deal.stage_changed', {
+              dealId,
+              pipelineId: oldDeal.pipelineId,
+              fromStageId: oldDeal.stageId,
+              toStageId: body.stageId as string,
+              ...(primary ? { contactId: primary.contactId } : {}),
+              ...(userId ? { userId } : {}),
+            });
+          } catch {
+            // Non-fatal — emit without contactId
+            eventBus.emit('deal.stage_changed', {
+              dealId,
+              pipelineId: oldDeal.pipelineId ?? '',
+              fromStageId: oldDeal.stageId ?? null,
+              toStageId: (body.stageId as string) ?? '',
+              ...(userId ? { userId } : {}),
+            });
+          }
+        }
+      }
+
+      // Meeting scheduled (POST /api/meetings)
+      if (method === 'POST' && /^\/api\/meetings/.test(url) && reply.statusCode === 201) {
+        const body = (req as any).__responseBody;
+        if (body?.id && body?.contactId) {
+          eventBus.emit('meeting.scheduled', {
+            meetingId: body.id,
+            contactId: body.contactId,
+            ...(userId ? { userId } : {}),
+          });
+        }
+      }
+
       // Form submission
       if (method === 'POST' && /^\/api\/forms\/[^/]+\/submit$/.test(url)) {
         const body = (req as any).__responseBody;
@@ -140,8 +189,9 @@ async function workflowEmitterPlugin(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // Pre-handler to capture old contact values before update
+  // Pre-handler to capture old values before mutations
   app.addHook('preHandler', async (req) => {
+    // Old contact values before update
     if (req.method === 'PATCH' && /^\/api\/contacts\/[^/]+$/.test(req.url)) {
       const contactId = req.url.split('/')[3];
       if (contactId) {
@@ -154,6 +204,25 @@ async function workflowEmitterPlugin(app: FastifyInstance): Promise<void> {
             .where(eq(contacts.id, contactId))
             .limit(1);
           (req as any).__oldContact = old ?? null;
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
+
+    // Old deal values before stage change
+    if (req.method === 'POST' && /^\/api\/deals\/[^/]+\/stage$/.test(req.url)) {
+      const dealId = req.url.split('/')[3];
+      if (dealId) {
+        try {
+          const { deals } = await import('@crm/db');
+          const { eq } = await import('drizzle-orm');
+          const [old] = await app.db
+            .select()
+            .from(deals)
+            .where(eq(deals.id, dealId))
+            .limit(1);
+          (req as any).__oldDeal = old ?? null;
         } catch {
           // Non-fatal
         }
