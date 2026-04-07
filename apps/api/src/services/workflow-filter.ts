@@ -75,6 +75,39 @@ function applyOperator(
       return !list.includes(String(fieldValue ?? ''));
     }
 
+    case 'contains':
+      return String(fieldValue ?? '').includes(String(conditionValue ?? ''));
+
+    case 'not_contains':
+      return !String(fieldValue ?? '').includes(String(conditionValue ?? ''));
+
+    case 'greater_than': {
+      const num = parseFloat(String(fieldValue ?? ''));
+      const threshold = parseFloat(String(conditionValue ?? ''));
+      return !isNaN(num) && !isNaN(threshold) && num > threshold;
+    }
+
+    case 'less_than': {
+      const num = parseFloat(String(fieldValue ?? ''));
+      const threshold = parseFloat(String(conditionValue ?? ''));
+      return !isNaN(num) && !isNaN(threshold) && num < threshold;
+    }
+
+    case 'starts_with':
+      return String(fieldValue ?? '').startsWith(String(conditionValue ?? ''));
+
+    case 'ends_with':
+      return String(fieldValue ?? '').endsWith(String(conditionValue ?? ''));
+
+    case 'changed_in_last_n_days': {
+      const days = parseInt(String(conditionValue ?? '0'), 10);
+      if (isNaN(days) || !fieldValue) return false;
+      const date = new Date(String(fieldValue));
+      if (isNaN(date.getTime())) return false;
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      return date >= cutoff;
+    }
+
     default:
       return false;
   }

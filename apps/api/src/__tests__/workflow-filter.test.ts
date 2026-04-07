@@ -230,4 +230,66 @@ describe('evaluateFilters', () => {
     };
     assert.equal(evaluateFilters(filters, record), true);
   });
+
+  // ── New operators (Phase 2) ─────────────────────────────────────────
+
+  describe('new operators', () => {
+    const record = {
+      name: 'Anna Garcia',
+      city: 'Barcelona',
+      num_sessions: '8',
+      status: 'Lead',
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+    };
+
+    it('contains: true when value is substring', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'name', operator: 'contains', value: 'Garcia' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('contains: false when not found', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'name', operator: 'contains', value: 'Smith' }] };
+      assert.equal(evaluateFilters(f, record), false);
+    });
+
+    it('not_contains: true when absent', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'name', operator: 'not_contains', value: 'Smith' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('greater_than: true when number exceeds threshold', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'num_sessions', operator: 'greater_than', value: '5' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('greater_than: false when below threshold', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'num_sessions', operator: 'greater_than', value: '10' }] };
+      assert.equal(evaluateFilters(f, record), false);
+    });
+
+    it('less_than: true when number is below threshold', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'num_sessions', operator: 'less_than', value: '10' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('starts_with: true when string begins with prefix', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'city', operator: 'starts_with', value: 'Bar' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('ends_with: true when string ends with suffix', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'city', operator: 'ends_with', value: 'ona' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('changed_in_last_n_days: true when date is within N days', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'created_at', operator: 'changed_in_last_n_days', value: '7' }] };
+      assert.equal(evaluateFilters(f, record), true);
+    });
+
+    it('changed_in_last_n_days: false when date is older than N days', () => {
+      const f: FilterGroup = { logic: 'and', conditions: [{ property: 'created_at', operator: 'changed_in_last_n_days', value: '2' }] };
+      assert.equal(evaluateFilters(f, record), false);
+    });
+  });
 });
