@@ -32,6 +32,7 @@ import {
   type UnenrollFromWorkflowConfig,
 } from './step-executors/enroll-in-workflow.js';
 import { executeRequestAiContent, type RequestAiContentConfig } from './step-executors/request-ai-content.js';
+import { executeAiClassify, type AiClassifyConfig } from './step-executors/ai-classify.js';
 import { createNotification } from './notifications.js';
 
 // Retry schedule: 1min, 5min, 30min
@@ -348,6 +349,15 @@ async function executeSingleStep(
         db,
         run,
         config as unknown as RequestAiContentConfig,
+        mergeContext,
+      );
+      break;
+
+    case 'ai_classify':
+      await executeAiClassify(
+        db,
+        run,
+        config as unknown as AiClassifyConfig,
         mergeContext,
       );
       break;

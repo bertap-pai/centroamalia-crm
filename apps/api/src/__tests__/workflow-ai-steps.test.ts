@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveMergeTags } from '../services/workflow-merge-tags.js';
+import { extractClassification } from '../services/step-executors/ai-classify.js';
 
 describe('MergeContext var namespace', () => {
   it('resolves {{var.key}} when var is populated', () => {
@@ -31,5 +32,27 @@ describe('MergeContext var namespace', () => {
     };
     const result = resolveMergeTags('Hola {{contact.first_name}}, el teu codi és {{var.promo_code}}', ctx);
     assert.equal(result, 'Hola Ana, el teu codi és WELCOME10');
+  });
+});
+
+describe('extractClassification', () => {
+  it('returns exact match when response equals a category', () => {
+    const result = extractClassification('hot_lead', ['hot_lead', 'cold_lead', 'nurture']);
+    assert.equal(result, 'hot_lead');
+  });
+
+  it('is case-insensitive for exact match', () => {
+    const result = extractClassification('Hot_Lead', ['hot_lead', 'cold_lead']);
+    assert.equal(result, 'hot_lead');
+  });
+
+  it('falls back to partial match when response includes category', () => {
+    const result = extractClassification('I classify this as cold_lead.', ['hot_lead', 'cold_lead']);
+    assert.equal(result, 'cold_lead');
+  });
+
+  it('returns null when no category matches', () => {
+    const result = extractClassification('unknown', ['hot_lead', 'cold_lead']);
+    assert.equal(result, null);
   });
 });
