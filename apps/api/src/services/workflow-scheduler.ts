@@ -5,6 +5,7 @@ import { workflowSchedules, workflowRuns, workflowEnrollments, workflowTriggerSc
 import type { FilterGroup } from '@crm/db';
 import { executeRun } from './workflow-executor.js';
 import { evaluateFilters } from './workflow-filter.js';
+import { runTimeTriggerSweep } from './workflow-time-triggers.js';
 
 async function workflowSchedulerPlugin(app: FastifyInstance): Promise<void> {
   // Run every minute: check for sleeping runs to resume
@@ -144,9 +145,25 @@ async function workflowSchedulerPlugin(app: FastifyInstance): Promise<void> {
 
   const intervalId = setInterval(tick, INTERVAL_MS);
 
+  // Hourly sweep for time-based triggers (scheduled_recurring, time_before_event, contact_anniversary)
+  const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+  async function sweepTick(): Promise<void> {
+    try {
+      await runTimeTriggerSweep(app.db);
+    } catch (err) {
+      app.log.error({ err }, '[workflow-time-triggers] Sweep failed');
+    }
+  }
+
+  sweepTick();
+
+  const sweepIntervalId = setInterval(sweepTick, SWEEP_INTERVAL_MS);
+
   // Cleanup on server close
   app.addHook('onClose', async () => {
     clearInterval(intervalId);
+    clearInterval(sweepIntervalId);
   });
 }
 
