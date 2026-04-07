@@ -3,6 +3,7 @@ import {
   workflows,
   workflowRuns,
   workflowEnrollments,
+  workflowTriggerSchedules,
   contacts,
   type Workflow,
   type FilterGroup,
@@ -95,7 +96,7 @@ function matchesTriggerConfig(
 
 // ── Enrollment check ───────────────────────────────────────────────────
 
-async function checkEnrollment(
+export async function checkEnrollmentAllowed(
   db: Db,
   workflowId: string,
   contactId: string,
@@ -125,7 +126,7 @@ async function checkEnrollment(
   return false;
 }
 
-async function recordEnrollment(
+export async function recordEnrollment(
   db: Db,
   workflowId: string,
   contactId: string,
@@ -137,6 +138,21 @@ async function recordEnrollment(
       target: [workflowEnrollments.workflowId, workflowEnrollments.contactId],
       set: { lastEnrolledAt: new Date() },
     });
+}
+
+// ── Time-after-event helper ──────────────────────────────────────────────
+
+function calculateTriggerAt(config: {
+  daysAfter?: number;
+  hoursAfter?: number;
+  minutesAfter?: number;
+}, baseTime: Date): Date {
+  let totalMs = 0;
+  if (config.daysAfter) totalMs += config.daysAfter * 24 * 60 * 60 * 1000;
+  if (config.hoursAfter) totalMs += config.hoursAfter * 60 * 60 * 1000;
+  if (config.minutesAfter) totalMs += config.minutesAfter * 60 * 1000;
+  if (totalMs === 0) totalMs = 24 * 60 * 60 * 1000; // default 1 day
+  return new Date(baseTime.getTime() + totalMs);
 }
 
 // ── Process a single event ─────────────────────────────────────────────
@@ -192,7 +208,7 @@ async function processEvent<E extends CrmEventType>(
       }
 
       // 3. Check enrollment
-      const canEnroll = await checkEnrollment(
+      const canEnroll = await checkEnrollmentAllowed(
         db,
         workflow.id,
         contactId,
@@ -222,6 +238,42 @@ async function processEvent<E extends CrmEventType>(
       });
     } catch (err) {
       console.error(`[workflow-engine] Error processing workflow ${workflow.id}:`, err);
+    }
+  }
+
+  // Also check workflows with time_after_event trigger that reference this event type
+  const timeAfterWorkflows = await getActiveWorkflows(db, 'time_after_event');
+  for (const workflow of timeAfterWorkflows) {
+    try {
+      const config = workflow.triggerConfig as { baseEvent?: string; daysAfter?: number; hoursAfter?: number; minutesAfter?: number };
+      if (config.baseEvent !== triggerType) continue;
+      if (!contactId) continue;
+
+      const allowed = await checkEnrollmentAllowed(db, workflow.id, contactId, workflow.enrollmentMode);
+      if (!allowed) continue;
+
+      // Evaluate filters against current contact state
+      if (workflow.filters) {
+        if (!contactRecord) {
+          const [row] = await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
+          contactRecord = row
+            ? { first_name: row.firstName, last_name: row.lastName, email: row.email, phone: row.phoneE164 }
+            : {};
+        }
+        if (!evaluateFilters(workflow.filters as FilterGroup | null, contactRecord)) continue;
+      }
+
+      // Schedule the deferred trigger
+      const triggerAt = calculateTriggerAt(config, new Date());
+      await db.insert(workflowTriggerSchedules).values({
+        workflowId: workflow.id,
+        contactId,
+        dealId: dealId ?? null,
+        triggerAt,
+        payload: payloadRecord,
+      });
+    } catch (err) {
+      console.error(`[workflow-engine] Error scheduling time_after_event for workflow ${workflow.id}:`, err);
     }
   }
 }
