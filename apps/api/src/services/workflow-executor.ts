@@ -1,4 +1,4 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, isNull } from 'drizzle-orm';
 import {
   workflowRuns,
   workflowSteps,
@@ -8,6 +8,7 @@ import {
   workflows,
   type WorkflowStep,
   type WorkflowRun,
+  type FilterGroup,
 } from '@crm/db';
 import type { FastifyInstance } from 'fastify';
 import type { MergeContext } from './workflow-merge-tags.js';
@@ -19,6 +20,17 @@ import { executeAddTag, executeRemoveTag, type TagConfig } from './step-executor
 import { executeSendInternalNotification, type SendNotificationConfig } from './step-executors/send-internal-notification.js';
 import { executeWebhook, type WebhookConfig } from './step-executors/webhook.js';
 import { executeWait, type WaitConfig } from './step-executors/wait.js';
+import { executeWaitUntil, type WaitUntilConfig } from './step-executors/wait-until.js';
+import { executeCreateDeal, type CreateDealConfig } from './step-executors/create-deal.js';
+import { executeMoveDealStage, type MoveDealStageConfig } from './step-executors/move-deal-stage.js';
+import { executeUpdateDealProperty, type UpdateDealPropertyConfig } from './step-executors/update-deal-property.js';
+import { executeAssignOwner, type AssignOwnerConfig } from './step-executors/assign-owner.js';
+import {
+  executeEnrollInWorkflow,
+  executeUnenrollFromWorkflow,
+  type EnrollInWorkflowConfig,
+  type UnenrollFromWorkflowConfig,
+} from './step-executors/enroll-in-workflow.js';
 import { createNotification } from './notifications.js';
 
 // Retry schedule: 1min, 5min, 30min
@@ -33,7 +45,6 @@ export async function executeRun(db: Db, runId: string): Promise<void> {
 
   if (!run || (run.status !== 'running' && run.status !== 'sleeping')) return;
 
-  // If resuming from sleep, update status back to running
   if (run.status === 'sleeping') {
     await db
       .update(workflowRuns)
@@ -41,10 +52,11 @@ export async function executeRun(db: Db, runId: string): Promise<void> {
       .where(eq(workflowRuns.id, runId));
   }
 
+  // Only load top-level steps (no parent)
   const steps = await db
     .select()
     .from(workflowSteps)
-    .where(eq(workflowSteps.workflowId, run.workflowId))
+    .where(and(eq(workflowSteps.workflowId, run.workflowId), isNull(workflowSteps.parentStepId)))
     .orderBy(asc(workflowSteps.order));
 
   if (steps.length === 0) {
@@ -55,18 +67,26 @@ export async function executeRun(db: Db, runId: string): Promise<void> {
     return;
   }
 
-  // Build merge context
   const mergeContext = await buildMergeContext(db, run);
-
-  // Find the starting step (resume after last executed step)
   const startIdx = run.lastStepExecuted != null ? run.lastStepExecuted : 0;
 
   for (let i = startIdx; i < steps.length; i++) {
     const step = steps[i]!;
+
+    // Branch steps are handled specially — no retry logic
+    if (step.type === 'branch') {
+      const stopped = await executeBranchStep(db, run, step, mergeContext);
+      await db
+        .update(workflowRuns)
+        .set({ lastStepExecuted: i + 1 })
+        .where(eq(workflowRuns.id, runId));
+      if (stopped) return;
+      continue;
+    }
+
     const success = await executeStepWithRetry(db, run, step, mergeContext);
 
     if (!success) {
-      // Step permanently failed
       await db
         .update(workflowRuns)
         .set({
@@ -76,29 +96,106 @@ export async function executeRun(db: Db, runId: string): Promise<void> {
           completedAt: new Date(),
         })
         .where(eq(workflowRuns.id, runId));
-
-      // Send admin notification about failure
       await notifyFailure(db, run, step, i);
       return;
     }
 
-    // Update last step executed
     await db
       .update(workflowRuns)
       .set({ lastStepExecuted: i + 1 })
       .where(eq(workflowRuns.id, runId));
 
-    // If this was a wait step, the run is now sleeping — stop execution
-    if (step.type === 'wait') {
-      return;
+    if (step.type === 'wait' || step.type === 'wait_until') {
+      return; // Run is now sleeping
     }
   }
 
-  // All steps completed
   await db
     .update(workflowRuns)
     .set({ status: 'completed', completedAt: new Date() })
     .where(eq(workflowRuns.id, runId));
+}
+
+/**
+ * Evaluates branch condition, then executes matching child steps.
+ * Returns true if execution should pause (a wait/wait_until was hit in the branch).
+ */
+async function executeBranchStep(
+  db: Db,
+  run: WorkflowRun,
+  branchStep: WorkflowStep,
+  mergeContext: MergeContext,
+): Promise<boolean> {
+  const { evaluateFilters } = await import('./workflow-filter.js');
+  const contact = await loadContactRecord(db, run.contactId);
+  const config = branchStep.config as { condition?: FilterGroup };
+  const tookTrue = config.condition ? evaluateFilters(config.condition, contact) : false;
+
+  // Log the branch decision
+  await db.insert(workflowStepLogs).values({
+    runId: run.id,
+    stepId: branchStep.id,
+    stepType: branchStep.type,
+    result: 'ok',
+    output: { branch: tookTrue ? 'true' : 'false' },
+  });
+
+  // Load matching children
+  const branchValue = tookTrue ? 'true' : 'false';
+  const children = await db
+    .select()
+    .from(workflowSteps)
+    .where(
+      and(
+        eq(workflowSteps.parentStepId, branchStep.id),
+        eq(workflowSteps.branch, branchValue),
+      ),
+    )
+    .orderBy(asc(workflowSteps.order));
+
+  return executeChildSteps(db, run, children, mergeContext);
+}
+
+/**
+ * Executes a list of child steps sequentially.
+ * Returns true if a wait/wait_until step was hit (caller should pause).
+ */
+async function executeChildSteps(
+  db: Db,
+  run: WorkflowRun,
+  steps: WorkflowStep[],
+  mergeContext: MergeContext,
+): Promise<boolean> {
+  for (const step of steps) {
+    const success = await executeStepWithRetry(db, run, step, mergeContext);
+    if (!success) {
+      await db
+        .update(workflowRuns)
+        .set({
+          status: 'failed',
+          errorMessage: `Branch child step (${step.type}) failed after retries`,
+          completedAt: new Date(),
+        })
+        .where(eq(workflowRuns.id, run.id));
+      await notifyFailure(db, run, step, -1);
+      return true; // stopped
+    }
+    if (step.type === 'wait' || step.type === 'wait_until') {
+      return true; // sleeping
+    }
+  }
+  return false;
+}
+
+async function loadContactRecord(db: Db, contactId: string): Promise<Record<string, unknown>> {
+  const [contact] = await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
+  if (!contact) return {};
+  return {
+    first_name: contact.firstName,
+    last_name: contact.lastName,
+    email: contact.email,
+    phone: contact.phoneE164,
+  };
 }
 
 async function executeStepWithRetry(
@@ -199,13 +296,55 @@ async function executeSingleStep(
 
     case 'wait': {
       await executeWait(db, run.id, config as unknown as WaitConfig);
-      // Mark run as sleeping
       await db
         .update(workflowRuns)
         .set({ status: 'sleeping' })
         .where(eq(workflowRuns.id, run.id));
       break;
     }
+
+    case 'wait_until': {
+      await executeWaitUntil(db, run.id, config as unknown as WaitUntilConfig);
+      await db
+        .update(workflowRuns)
+        .set({ status: 'sleeping' })
+        .where(eq(workflowRuns.id, run.id));
+      break;
+    }
+
+    case 'create_deal':
+      await executeCreateDeal(db, run.contactId, config as unknown as CreateDealConfig);
+      break;
+
+    case 'move_deal_stage':
+      await executeMoveDealStage(db, run.dealId, config as unknown as MoveDealStageConfig);
+      break;
+
+    case 'update_deal_property':
+      await executeUpdateDealProperty(db, run.dealId, config as unknown as UpdateDealPropertyConfig);
+      break;
+
+    case 'assign_owner':
+      await executeAssignOwner(
+        db,
+        run.contactId,
+        run.dealId,
+        run.workflowId,
+        config as unknown as AssignOwnerConfig,
+      );
+      break;
+
+    case 'enroll_in_workflow':
+      await executeEnrollInWorkflow(db, run.contactId, config as unknown as EnrollInWorkflowConfig);
+      break;
+
+    case 'unenroll_from_workflow':
+      await executeUnenrollFromWorkflow(db, run.contactId, config as unknown as UnenrollFromWorkflowConfig);
+      break;
+
+    case 'branch':
+      // Handled in executeRun — should not reach here
+      break;
 
     default:
       throw new Error(`Unknown step type: ${step.type}`);
