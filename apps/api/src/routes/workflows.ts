@@ -21,7 +21,7 @@ import {
   type NewWorkflow,
   type NewWorkflowStep,
 } from '@crm/db';
-import { invalidateWorkflowCache } from '../services/workflow-engine.js';
+import { invalidateWorkflowCache, checkEnrollmentAllowed } from '../services/workflow-engine.js';
 import { executeRun } from '../services/workflow-executor.js';
 
 export default async function workflowsRoutes(app: FastifyInstance) {
@@ -569,6 +569,70 @@ export default async function workflowsRoutes(app: FastifyInstance) {
       );
 
     return { success: true };
+  });
+
+  // POST /api/workflows/:id/enroll-bulk — enroll multiple contacts at once
+  app.post('/api/workflows/:id/enroll-bulk', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as { contactIds?: string[] };
+
+    if (!body.contactIds || !Array.isArray(body.contactIds) || body.contactIds.length === 0) {
+      return reply.code(400).send({ error: 'contactIds array is required and must be non-empty' });
+    }
+
+    // Cap at 500 contacts per call to avoid runaway operations
+    if (body.contactIds.length > 500) {
+      return reply.code(400).send({ error: 'contactIds must contain at most 500 entries' });
+    }
+
+    const [workflow] = await app.db
+      .select()
+      .from(workflows)
+      .where(and(eq(workflows.id, id), eq(workflows.status, 'active'), isNull(workflows.deletedAt)))
+      .limit(1);
+
+    if (!workflow) return reply.code(404).send({ error: 'workflow_not_found_or_not_active' });
+
+    let enrolled = 0;
+    let skipped = 0;
+
+    for (const contactId of body.contactIds) {
+      try {
+        // Respect enrollment mode
+        const allowed = await checkEnrollmentAllowed(app.db, id, contactId, workflow.enrollmentMode);
+        if (!allowed) {
+          skipped++;
+          continue;
+        }
+
+        // Record enrollment
+        await app.db
+          .insert(workflowEnrollments)
+          .values({ workflowId: id, contactId })
+          .onConflictDoUpdate({
+            target: [workflowEnrollments.workflowId, workflowEnrollments.contactId],
+            set: { lastEnrolledAt: new Date() },
+          });
+
+        // Create run
+        const [run] = await app.db
+          .insert(workflowRuns)
+          .values({ workflowId: id, contactId, status: 'running' })
+          .returning();
+
+        if (run) {
+          executeRun(app.db, run.id).catch((err) => {
+            app.log.error({ err, runId: run.id }, 'Bulk enrollment run failed');
+          });
+          enrolled++;
+        }
+      } catch (err) {
+        app.log.error({ err, contactId }, 'Bulk enrollment: error processing contact');
+        skipped++;
+      }
+    }
+
+    return reply.code(200).send({ enrolled, skipped });
   });
 
   // ═══════════════════════════════════════════════════════════════════════
