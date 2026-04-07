@@ -26,6 +26,9 @@ const STEP_TYPE_OPTIONS = [
   { value: 'assign_owner', label: 'Assignar responsable' },
   { value: 'enroll_in_workflow', label: 'Inscriure en workflow' },
   { value: 'unenroll_from_workflow', label: 'Desinscriure de workflow' },
+  { value: 'trigger_agent', label: 'Activar agent IA' },
+  { value: 'request_ai_content', label: 'Generar contingut IA' },
+  { value: 'ai_classify', label: 'Classificar amb IA' },
 ];
 
 const STEP_ICONS: Record<string, string> = {
@@ -44,6 +47,9 @@ const STEP_ICONS: Record<string, string> = {
   assign_owner: '👤',
   enroll_in_workflow: '↪️',
   unenroll_from_workflow: '↩️',
+  trigger_agent: '🤖',
+  request_ai_content: '✨',
+  ai_classify: '🏷️',
 };
 
 function configSummary(step: WorkflowStep): string {
@@ -63,6 +69,9 @@ function configSummary(step: WorkflowStep): string {
     case 'assign_owner': return `mode: ${c.mode}`;
     case 'enroll_in_workflow': return `workflow: ${c.targetWorkflowId}`;
     case 'unenroll_from_workflow': return `workflow: ${c.targetWorkflowId}`;
+    case 'trigger_agent': return `agent: ${c.agentId} | "${c.taskTitle}"`;
+    case 'request_ai_content': return `prompt → {{var.${c.outputVariable}}}`;
+    case 'ai_classify': return `→ ${c.outputProperty}: [${(c.categories as string[] | undefined)?.join('|') ?? '...'}]`;
     default: return JSON.stringify(c).slice(0, 60);
   }
 }
@@ -83,6 +92,9 @@ function defaultConfig(type: string): Record<string, unknown> {
     case 'assign_owner': return { target: 'deal', mode: 'fixed', userId: '' };
     case 'enroll_in_workflow': return { targetWorkflowId: '' };
     case 'unenroll_from_workflow': return { targetWorkflowId: '' };
+    case 'trigger_agent': return { agentId: '', taskTitle: 'Tasca per {{contact.first_name}} {{contact.last_name}}', message: '' };
+    case 'request_ai_content': return { prompt: 'Escriu un missatge de benvinguda personalitzat per {{contact.first_name}}', outputVariable: 'ai_content', model: 'claude-haiku-4-5-20251001' };
+    case 'ai_classify': return { categories: ['hot_lead', 'cold_lead', 'nurture'], prompt: 'Classifica aquest contacte: {{contact.first_name}} {{contact.last_name}}, email: {{contact.email}}', outputProperty: 'lead_category' };
     default: return {};
   }
 }
