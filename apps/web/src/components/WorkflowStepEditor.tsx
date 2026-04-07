@@ -102,6 +102,8 @@ export default function WorkflowStepEditor({ workflowId, steps, canEdit, onReloa
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   async function handleAddStep() {
     setSaving(true);
@@ -152,8 +154,39 @@ export default function WorkflowStepEditor({ workflowId, steps, canEdit, onReloa
       )}
 
       {topLevelSteps.map((step, idx) => (
-        <div key={step.id} style={{ border: '1px solid #e0e0e0', borderRadius: 6, padding: 14, marginBottom: 10, background: '#fff' }}>
+        <div
+          key={step.id}
+          draggable={canEdit}
+          onDragStart={() => setDragIdx(idx)}
+          onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+          onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+          onDrop={async () => {
+            if (dragIdx === null || dragIdx === idx) return;
+            const reordered = [...topLevelSteps];
+            const [moved] = reordered.splice(dragIdx, 1);
+            reordered.splice(idx, 0, moved!);
+            const updates = reordered.map((s, i) => ({ id: s.id, order: i + 1 }));
+            try {
+              await api.post(`/api/workflows/${workflowId}/steps/reorder`, { steps: updates });
+              onReload();
+            } catch {
+              alert('Error reordenant els passos.');
+            }
+            setDragIdx(null);
+            setDragOverIdx(null);
+          }}
+          style={{
+            border: dragOverIdx === idx ? '2px dashed #1a73e8' : '1px solid #e0e0e0',
+            borderRadius: 6,
+            padding: 14,
+            marginBottom: 10,
+            background: dragIdx === idx ? '#f0f4ff' : '#fff',
+            cursor: canEdit ? 'grab' : 'default',
+            opacity: dragIdx === idx ? 0.5 : 1,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {canEdit && <span style={{ cursor: 'grab', color: '#aaa', fontSize: 16 }}>&#x2807;</span>}
             <span style={{ fontSize: 20 }}>{STEP_ICONS[step.type] ?? '⚙️'}</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 500, fontSize: 14 }}>{idx + 1}. {STEP_TYPE_OPTIONS.find(o => o.value === step.type)?.label ?? step.type}</div>

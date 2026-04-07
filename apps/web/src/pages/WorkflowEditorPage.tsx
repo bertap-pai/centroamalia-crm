@@ -62,6 +62,7 @@ export default function WorkflowEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('config');
+  const [showTest, setShowTest] = useState(false);
 
   // Editable fields
   const [name, setName] = useState('');
@@ -164,6 +165,12 @@ export default function WorkflowEditorPage() {
             Pausar
           </button>
         )}
+        <button
+          onClick={() => setShowTest(true)}
+          style={{ padding: '6px 16px', background: '#fff', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
+        >
+          Test
+        </button>
         <button onClick={handleDelete} style={{ padding: '6px 12px', background: 'none', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer', color: '#c62828' }}>
           Eliminar
         </button>
@@ -251,6 +258,10 @@ export default function WorkflowEditorPage() {
       {tab === 'executions' && (
         <ExecutionsTab workflowId={wf.id} />
       )}
+
+      {showTest && (
+        <TestModeModal workflowId={wf.id} onClose={() => setShowTest(false)} />
+      )}
     </div>
   );
 }
@@ -290,5 +301,119 @@ function ExecutionsTab({ workflowId }: { workflowId: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+interface TestResult {
+  workflowName: string;
+  contact: { id: string; name: string; email: string | null };
+  filtersPassed: boolean;
+  enrollmentBlocked: boolean;
+  enrollmentBlockReason: string | null;
+  wouldEnroll: boolean;
+  steps: Array<{ order: number; type: string; note: string }>;
+  simulationNote: string;
+}
+
+function TestModeModal({
+  workflowId,
+  onClose,
+}: {
+  workflowId: string;
+  onClose: () => void;
+}) {
+  const [contactId, setContactId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [error, setError] = useState('');
+
+  async function handleTest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!contactId.trim()) return;
+    setLoading(true);
+    setError('');
+    setResult(null);
+    try {
+      const data = await api.post(`/api/workflows/${workflowId}/test`, { contactId: contactId.trim() });
+      setResult(data);
+    } catch (err: any) {
+      setError(err.message ?? 'Error running simulation.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    }}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: 28, width: 600, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Mode de test</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#666' }}>x</button>
+        </div>
+
+        <form onSubmit={handleTest} style={{ marginBottom: 20, display: 'flex', gap: 8 }}>
+          <input
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            placeholder="ID del contacte de prova"
+            style={{ flex: 1, padding: '8px 12px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
+          />
+          <button
+            type="submit"
+            disabled={loading || !contactId.trim()}
+            style={{ padding: '8px 16px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14 }}
+          >
+            {loading ? 'Simulant...' : 'Simular'}
+          </button>
+        </form>
+
+        {error && <div style={{ color: '#c62828', marginBottom: 12, fontSize: 13 }}>{error}</div>}
+
+        {result && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 13, color: '#555' }}>Contacte: <strong>{result.contact.name || result.contact.id}</strong> {result.contact.email ? `(${result.contact.email})` : ''}</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <StatusBadge ok={result.filtersPassed} label={result.filtersPassed ? 'Filtres: aprovats' : 'Filtres: no passa'} />
+              <StatusBadge ok={!result.enrollmentBlocked} label={result.enrollmentBlocked ? 'Inscripcio bloquejada' : 'Inscripcio: permesa'} />
+              <StatusBadge ok={result.wouldEnroll} label={result.wouldEnroll ? "S'inscriuria" : "No s'inscriuria"} />
+            </div>
+
+            {result.enrollmentBlockReason && (
+              <div style={{ fontSize: 12, color: '#e65100', marginBottom: 12, padding: '6px 10px', background: '#fff3e0', borderRadius: 4 }}>
+                {result.enrollmentBlockReason}
+              </div>
+            )}
+
+            <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>Passos ({result.steps.length})</h4>
+            {result.steps.map((step) => (
+              <div key={step.order} style={{ padding: '8px 12px', borderLeft: '3px solid #1a73e8', marginBottom: 6, background: '#f8f9ff', borderRadius: '0 4px 4px 0', fontSize: 13 }}>
+                <span style={{ fontWeight: 500 }}>{step.order}. [{step.type}]</span> {step.note}
+              </div>
+            ))}
+
+            <div style={{ marginTop: 16, fontSize: 12, color: '#888', fontStyle: 'italic' }}>{result.simulationNote}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span style={{
+      padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
+      background: ok ? '#e8f5e9' : '#ffebee',
+      color: ok ? '#2e7d32' : '#c62828',
+      border: `1px solid ${ok ? '#a5d6a7' : '#ef9a9a'}`,
+    }}>
+      {label}
+    </span>
   );
 }
