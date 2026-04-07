@@ -103,7 +103,6 @@ async function checkEnrollment(
 ): Promise<boolean> {
   if (mode === 'every_time') return true;
 
-  // mode === 'once': skip if already enrolled
   const [existing] = await db
     .select()
     .from(workflowEnrollments)
@@ -115,7 +114,15 @@ async function checkEnrollment(
     )
     .limit(1);
 
-  return !existing;
+  if (!existing) return true;
+  if (mode === 'once') return false;
+
+  if (mode === 'once_per_week') {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return existing.lastEnrolledAt < oneWeekAgo;
+  }
+
+  return false;
 }
 
 async function recordEnrollment(
