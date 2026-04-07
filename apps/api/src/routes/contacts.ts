@@ -214,6 +214,7 @@ export default async function contactsRoutes(app: FastifyInstance) {
         diff: { after: { phoneE164, firstName: body.firstName, lastName: body.lastName, email: body.email } },
       });
 
+      (req as any).__responseBody = contact;
       return reply.code(201).send(contact);
     },
   );

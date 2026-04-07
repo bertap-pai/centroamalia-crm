@@ -407,6 +407,7 @@ export default async function dealsRoutes(app: FastifyInstance) {
         diff: { after: { pipelineId: body.pipelineId, stageId: body.stageId, ownerUserId: body.ownerUserId } },
       });
 
+      (req as any).__responseBody = deal;
       return reply.code(201).send(deal);
     },
   );
