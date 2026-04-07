@@ -1,11 +1,31 @@
+import { useState, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
+import { useNotificationStream } from '../hooks/useNotificationStream.js';
+import { getNotificationBadgeClass } from '../lib/notification-utils.js';
+import NotificationPanel from './NotificationPanel.js';
 
 const SIDEBAR_W = 220;
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { notifications, unreadCount, criticalCount, refetch } = useNotificationStream();
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const togglePanel = useCallback(() => setPanelOpen((prev) => !prev), []);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+
+  const hasHigh = notifications.some(
+    (n) => !n.read_at && n.priority === 'high',
+  );
+  const badgeColor = criticalCount > 0
+    ? getNotificationBadgeClass('critical')
+    : hasHigh
+      ? getNotificationBadgeClass('high')
+      : unreadCount > 0
+        ? getNotificationBadgeClass('normal')
+        : null;
 
   async function handleLogout() {
     await logout();
@@ -93,9 +113,71 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* Main */}
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--color-bg)' }}>
-        {children}
-      </main>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Top bar with bell */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            padding: '8px 20px',
+            borderBottom: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            minHeight: 42,
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={togglePanel}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              fontSize: 18,
+              padding: '4px 6px',
+              lineHeight: 1,
+            }}
+            title="Notificacions"
+          >
+            🔔
+            {unreadCount > 0 && badgeColor && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  ...badgeColor,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: 10,
+                  minWidth: 16,
+                  height: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px',
+                  lineHeight: 1,
+                }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <main style={{ flex: 1, overflow: 'auto', background: 'var(--color-bg)' }}>
+          {children}
+        </main>
+      </div>
+
+      {/* Notification Panel */}
+      <NotificationPanel
+        open={panelOpen}
+        onClose={closePanel}
+        notifications={notifications}
+        onRefetch={refetch}
+      />
     </div>
   );
 }
