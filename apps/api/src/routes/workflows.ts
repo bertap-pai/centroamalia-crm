@@ -17,6 +17,7 @@ import {
   workflowStepLogs,
   workflowEnrollments,
   workflowSchedules,
+  contacts,
   type NewWorkflow,
   type NewWorkflowStep,
 } from '@crm/db';
@@ -641,4 +642,176 @@ export default async function workflowsRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     },
   );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // TEST MODE
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // POST /api/workflows/:id/test — dry-run simulation
+  app.post<{
+    Params: { id: string };
+    Body: { contactId: string };
+  }>(
+    '/api/workflows/:id/test',
+    { preHandler: app.requireAuth },
+    async (req, reply) => {
+      const { id } = req.params;
+      const { contactId } = req.body;
+
+      if (!contactId) return reply.code(400).send({ error: 'contactId_required' });
+
+      const [workflow] = await app.db
+        .select()
+        .from(workflows)
+        .where(and(eq(workflows.id, id), isNull(workflows.deletedAt)))
+        .limit(1);
+
+      if (!workflow) return reply.code(404).send({ error: 'not_found' });
+
+      const steps = await app.db
+        .select()
+        .from(workflowSteps)
+        .where(and(eq(workflowSteps.workflowId, id), isNull(workflowSteps.parentStepId)))
+        .orderBy(asc(workflowSteps.order));
+
+      const [contact] = await app.db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.id, contactId))
+        .limit(1);
+
+      if (!contact) return reply.code(404).send({ error: 'contact_not_found' });
+
+      const contactRecord: Record<string, unknown> = {
+        first_name: contact.firstName,
+        last_name: contact.lastName,
+        email: contact.email,
+        phone: contact.phoneE164,
+      };
+
+      const { evaluateFilters } = await import('../services/workflow-filter.js');
+      const filtersPassed = evaluateFilters(workflow.filters, contactRecord);
+
+      const [existingEnrollment] = await app.db
+        .select()
+        .from(workflowEnrollments)
+        .where(
+          and(
+            eq(workflowEnrollments.workflowId, id),
+            eq(workflowEnrollments.contactId, contactId),
+          ),
+        )
+        .limit(1);
+
+      let enrollmentBlocked = false;
+      let enrollmentBlockReason = '';
+      if (existingEnrollment) {
+        if (workflow.enrollmentMode === 'once') {
+          enrollmentBlocked = true;
+          enrollmentBlockReason = 'Contact already enrolled (mode: once)';
+        } else if (workflow.enrollmentMode === 'once_per_week') {
+          const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          if (existingEnrollment.lastEnrolledAt >= oneWeekAgo) {
+            enrollmentBlocked = true;
+            enrollmentBlockReason = `Last enrolled ${existingEnrollment.lastEnrolledAt.toISOString()} (mode: once_per_week, must wait 7 days)`;
+          }
+        }
+      }
+
+      const wouldEnroll = filtersPassed && !enrollmentBlocked;
+
+      const stepSummary = steps.map((step) => ({
+        order: step.order,
+        type: step.type,
+        config: step.config,
+        note: buildStepNote(step.type, step.config as Record<string, unknown>, contact),
+      }));
+
+      return reply.send({
+        workflowId: id,
+        workflowName: workflow.name,
+        workflowStatus: workflow.status,
+        contact: {
+          id: contact.id,
+          name: `${contact.firstName ?? ''} ${contact.lastName ?? ''}`.trim(),
+          email: contact.email,
+        },
+        filtersPassed,
+        enrollmentBlocked,
+        enrollmentBlockReason: enrollmentBlockReason || null,
+        wouldEnroll,
+        steps: stepSummary,
+        stepCount: steps.length,
+        simulationNote: 'No actions were executed. This is a read-only simulation.',
+      });
+    },
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // STEP REORDER
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // POST /api/workflows/:id/steps/reorder
+  app.post<{
+    Params: { id: string };
+    Body: { steps: Array<{ id: string; order: number }> };
+  }>(
+    '/api/workflows/:id/steps/reorder',
+    { preHandler: app.requireAuth },
+    async (req, reply) => {
+      const { steps } = req.body;
+      if (!Array.isArray(steps) || steps.length === 0) {
+        return reply.code(400).send({ error: 'steps_required' });
+      }
+
+      await Promise.all(
+        steps.map(({ id, order }) =>
+          app.db
+            .update(workflowSteps)
+            .set({ order })
+            .where(eq(workflowSteps.id, id)),
+        ),
+      );
+
+      return reply.send({ ok: true, updated: steps.length });
+    },
+  );
+}
+
+function buildStepNote(
+  type: string,
+  config: Record<string, unknown>,
+  contact: { firstName: string | null; lastName: string | null },
+): string {
+  const name = `${contact.firstName ?? ''} ${contact.lastName ?? ''}`.trim() || 'contact';
+  switch (type) {
+    case 'update_contact_property':
+      return `Would set "${config.propertyName}" = "${config.value}" on ${name}`;
+    case 'create_task':
+      return `Would create task "${config.title}" due in ${config.dueDays} day(s)`;
+    case 'add_tag':
+      return `Would add tag "${config.tag}" to ${name}`;
+    case 'remove_tag':
+      return `Would remove tag "${config.tag}" from ${name}`;
+    case 'send_internal_notification':
+      return `Would notify: "${config.title}"`;
+    case 'webhook':
+      return `Would POST to ${config.url}`;
+    case 'wait':
+      return `Would wait ${config.durationDays ?? config.durationHours ?? config.durationMinutes} ${config.durationDays ? 'day(s)' : config.durationHours ? 'hour(s)' : 'minute(s)'}`;
+    case 'wait_until':
+      return `Would wait until condition met (timeout: ${(config as Record<string, unknown>).timeoutDays} days)`;
+    case 'branch':
+      return `IF/ELSE branch — would evaluate condition at runtime`;
+    case 'create_deal':
+      return `Would create a new deal in pipeline ${config.pipelineId}`;
+    case 'move_deal_stage':
+      return `Would move deal to stage ${config.targetStageId}`;
+    case 'assign_owner':
+      return `Would assign owner (mode: ${config.mode})`;
+    case 'enroll_in_workflow':
+      return `Would enroll ${name} in workflow ${config.targetWorkflowId}`;
+    default:
+      return `Would execute ${type}`;
+  }
 }
