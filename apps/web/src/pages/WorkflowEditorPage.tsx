@@ -63,6 +63,10 @@ export default function WorkflowEditorPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('config');
   const [showTest, setShowTest] = useState(false);
+  const [showBulkEnroll, setShowBulkEnroll] = useState(false);
+  const [bulkContactIds, setBulkContactIds] = useState('');
+  const [bulkResult, setBulkResult] = useState<{ enrolled: number; skipped: number } | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Editable fields
   const [name, setName] = useState('');
@@ -165,6 +169,17 @@ export default function WorkflowEditorPage() {
             Pausar
           </button>
         )}
+        {wf.status === 'active' && canEdit && (
+          <button
+            onClick={() => { setShowBulkEnroll(true); setBulkResult(null); setBulkContactIds(''); }}
+            style={{
+              padding: '7px 14px', background: '#fff', border: '1px solid #1a73e8',
+              color: '#1a73e8', borderRadius: 4, cursor: 'pointer', fontSize: 13,
+            }}
+          >
+            Inscriure contactes
+          </button>
+        )}
         <button
           onClick={() => setShowTest(true)}
           style={{ padding: '6px 16px', background: '#fff', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
@@ -265,6 +280,68 @@ export default function WorkflowEditorPage() {
 
       {showTest && (
         <TestModeModal workflowId={wf.id} onClose={() => setShowTest(false)} />
+      )}
+
+      {showBulkEnroll && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBulkEnroll(false); }}
+        >
+          <div style={{ background: '#fff', borderRadius: 8, padding: 28, width: 480, maxWidth: '90vw' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Inscriure contactes al workflow</h3>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555' }}>
+              Enganxa els IDs de contacte (un per línia o separats per comes). Màxim 500.
+            </p>
+            <textarea
+              value={bulkContactIds}
+              onChange={(e) => setBulkContactIds(e.target.value)}
+              placeholder={'uuid-1\nuuid-2\nuuid-3...'}
+              rows={6}
+              style={{ width: '100%', boxSizing: 'border-box', padding: 8, border: '1px solid #ccc', borderRadius: 4, fontSize: 13, fontFamily: 'monospace' }}
+            />
+            {bulkResult && (
+              <div style={{ marginTop: 10, fontSize: 13, color: bulkResult.enrolled > 0 ? '#2a7a2a' : '#888' }}>
+                {bulkResult.enrolled} inscrits, {bulkResult.skipped} omesos
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                onClick={() => setShowBulkEnroll(false)}
+                style={{ padding: '7px 16px', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
+              >
+                Tancar
+              </button>
+              <button
+                disabled={bulkLoading || !bulkContactIds.trim()}
+                onClick={async () => {
+                  const ids = bulkContactIds
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  if (ids.length === 0) return;
+                  setBulkLoading(true);
+                  try {
+                    const data = await api.post(`/api/workflows/${wf.id}/enroll-bulk`, { contactIds: ids });
+                    setBulkResult(data as { enrolled: number; skipped: number });
+                  } catch {
+                    alert('Error inscrivint contactes.');
+                  } finally {
+                    setBulkLoading(false);
+                  }
+                }}
+                style={{
+                  padding: '7px 16px', background: bulkLoading ? '#aaa' : '#1a73e8',
+                  border: 'none', color: '#fff', borderRadius: 4, cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 13,
+                }}
+              >
+                {bulkLoading ? 'Inscrivint...' : 'Inscriure'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
