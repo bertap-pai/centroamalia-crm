@@ -129,6 +129,82 @@ export default async function workflowsRoutes(app: FastifyInstance) {
     return { ...workflow, steps };
   });
 
+  // GET /api/workflows/:id/analytics — run stats and step completion rates
+  app.get('/api/workflows/:id/analytics', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+
+    const [wf] = await app.db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(and(eq(workflows.id, id), isNull(workflows.deletedAt)))
+      .limit(1);
+
+    if (!wf) return reply.code(404).send({ error: 'workflow_not_found' });
+
+    // Aggregate run counts by status
+    const runStats = await app.db
+      .select({
+        status: workflowRuns.status,
+        cnt: count(),
+      })
+      .from(workflowRuns)
+      .where(eq(workflowRuns.workflowId, id))
+      .groupBy(workflowRuns.status);
+
+    const statsByStatus = Object.fromEntries(runStats.map((r) => [r.status, Number(r.cnt)]));
+    const totalRuns = runStats.reduce((sum, r) => sum + Number(r.cnt), 0);
+
+    // Runs per day — last 30 days
+    const runsByDay = await app.db
+      .select({
+        date: sql<string>`DATE(${workflowRuns.startedAt})`.as('date'),
+        cnt: count(),
+      })
+      .from(workflowRuns)
+      .where(
+        and(
+          eq(workflowRuns.workflowId, id),
+          sql`${workflowRuns.startedAt} >= NOW() - INTERVAL '30 days'`,
+        ),
+      )
+      .groupBy(sql`DATE(${workflowRuns.startedAt})`)
+      .orderBy(sql`DATE(${workflowRuns.startedAt})`);
+
+    // Step stats — success/error counts per step type
+    const stepStats = await app.db
+      .select({
+        stepType: workflowStepLogs.stepType,
+        result: workflowStepLogs.result,
+        cnt: count(),
+      })
+      .from(workflowStepLogs)
+      .innerJoin(workflowRuns, eq(workflowStepLogs.runId, workflowRuns.id))
+      .where(eq(workflowRuns.workflowId, id))
+      .groupBy(workflowStepLogs.stepType, workflowStepLogs.result);
+
+    // Reshape step stats into { stepType: { ok: N, error: N } }
+    const stepStatsMap: Record<string, { ok: number; error: number }> = {};
+    for (const row of stepStats) {
+      if (!stepStatsMap[row.stepType]) stepStatsMap[row.stepType] = { ok: 0, error: 0 };
+      if (row.result === 'ok') stepStatsMap[row.stepType]!.ok = Number(row.cnt);
+      if (row.result === 'error') stepStatsMap[row.stepType]!.error = Number(row.cnt);
+    }
+
+    const completedRuns = statsByStatus['completed'] ?? 0;
+    const failedRuns = statsByStatus['failed'] ?? 0;
+    const activeRuns = (statsByStatus['running'] ?? 0) + (statsByStatus['sleeping'] ?? 0);
+
+    return reply.send({
+      totalRuns,
+      activeRuns,
+      completedRuns,
+      failedRuns,
+      completionRate: totalRuns > 0 ? Math.round((completedRuns / totalRuns) * 100) : 0,
+      runsByDay: runsByDay.map((r) => ({ date: r.date, count: Number(r.cnt) })),
+      stepStats: stepStatsMap,
+    });
+  });
+
   // PUT /api/workflows/:id — update workflow (only draft/paused)
   app.put('/api/workflows/:id', { preHandler: app.requireAuth }, async (req, reply) => {
     const { id } = req.params as { id: string };
