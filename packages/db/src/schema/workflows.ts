@@ -38,6 +38,7 @@ export const workflowTriggerTypeEnum = pgEnum('workflow_trigger_type', [
 
 export const workflowEnrollmentModeEnum = pgEnum('workflow_enrollment_mode', [
   'once',
+  'once_per_week',
   'every_time',
 ]);
 
@@ -49,6 +50,14 @@ export const workflowStepTypeEnum = pgEnum('workflow_step_type', [
   'send_internal_notification',
   'webhook',
   'wait',
+  'branch',
+  'wait_until',
+  'create_deal',
+  'move_deal_stage',
+  'update_deal_property',
+  'assign_owner',
+  'enroll_in_workflow',
+  'unenroll_from_workflow',
 ]);
 
 export const workflowRunStatusEnum = pgEnum('workflow_run_status', [
@@ -201,6 +210,10 @@ export const workflowSchedules = pgTable(
       .references(() => workflowRuns.id, { onDelete: 'cascade' }),
     resumeAt: timestamp('resume_at', { withTimezone: true }).notNull(),
     resumedAt: timestamp('resumed_at', { withTimezone: true }),
+    // For wait_until: condition to check on resume; if met, resume immediately
+    condition: jsonb('condition').$type<FilterGroup | null>().default(null),
+    // For wait_until: hard deadline — resume regardless of condition after this
+    timeoutAt: timestamp('timeout_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -240,7 +253,14 @@ export type FilterOperator =
   | 'is_known'
   | 'is_unknown'
   | 'in_list'
-  | 'not_in_list';
+  | 'not_in_list'
+  | 'contains'
+  | 'not_contains'
+  | 'greater_than'
+  | 'less_than'
+  | 'starts_with'
+  | 'ends_with'
+  | 'changed_in_last_n_days';
 
 export interface FilterCondition {
   property: string;
