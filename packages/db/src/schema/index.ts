@@ -9,3 +9,4 @@ export * from './misc.js';
 export * from './audit-logs.js';
 export * from './forms.js';
 export * from './lists.js';
+export * from './notifications.js';

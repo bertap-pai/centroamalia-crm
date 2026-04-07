@@ -20,6 +20,9 @@ import usersRoutes from './routes/users.js';
 import formsRoutes from './routes/forms.js';
 import listsRoutes from './routes/lists.js';
 import metaWebhookRoutes from './routes/webhooks/meta.js';
+import notificationsRoutes from './routes/notifications.js';
+import { notifications } from '@crm/db';
+import { lt, sql } from 'drizzle-orm';
 
 // Build logger options without optional properties set to undefined —
 // exactOptionalPropertyTypes rejects `transport: undefined`.
@@ -60,12 +63,32 @@ async function start() {
   await app.register(formsRoutes);
   await app.register(listsRoutes);
   await app.register(metaWebhookRoutes);
+  await app.register(notificationsRoutes);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API listening on port ${env.PORT}`);
+
+  // 90-day notification cleanup — runs once daily
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  async function cleanupOldNotifications() {
+    try {
+      const cutoff = new Date(Date.now() - 90 * TWENTY_FOUR_HOURS);
+      const deleted = await app.db
+        .delete(notifications)
+        .where(lt(notifications.createdAt, cutoff))
+        .returning({ id: notifications.id });
+      if (deleted.length > 0) {
+        app.log.info(`Cleaned up ${deleted.length} notifications older than 90 days`);
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Notification cleanup failed');
+    }
+  }
+  cleanupOldNotifications();
+  setInterval(cleanupOldNotifications, TWENTY_FOUR_HOURS);
 }
 
 start().catch((err) => {
