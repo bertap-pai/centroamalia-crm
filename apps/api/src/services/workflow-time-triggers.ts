@@ -88,8 +88,8 @@ async function sweepScheduledRecurring(db: Db, workflow: Workflow, now: Date): P
 
     if (!evaluateFilters(workflow.filters, record)) continue;
 
-    const todayStart = new Date(now);
-    todayStart.setUTCHours(0, 0, 0, 0);
+    // 24-hour rolling window to avoid duplicate fires across UTC midnight
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const [alreadyFired] = await db
       .select()
@@ -98,7 +98,7 @@ async function sweepScheduledRecurring(db: Db, workflow: Workflow, now: Date): P
         and(
           eq(workflowTriggerSchedules.workflowId, workflow.id),
           eq(workflowTriggerSchedules.contactId, contact.id),
-          gte(workflowTriggerSchedules.createdAt, todayStart),
+          gte(workflowTriggerSchedules.createdAt, twentyFourHoursAgo),
         ),
       )
       .limit(1);
@@ -250,8 +250,8 @@ async function fireForContact(
 
   if (!evaluateFilters(workflow.filters, record)) return;
 
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
+  // 24-hour rolling window to avoid duplicate fires across UTC midnight
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   const [alreadyFired] = await db
     .select()
@@ -260,7 +260,7 @@ async function fireForContact(
       and(
         eq(workflowTriggerSchedules.workflowId, workflow.id),
         eq(workflowTriggerSchedules.contactId, contact.id),
-        gte(workflowTriggerSchedules.createdAt, todayStart),
+        gte(workflowTriggerSchedules.createdAt, twentyFourHoursAgo),
       ),
     )
     .limit(1);
