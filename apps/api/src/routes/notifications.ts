@@ -2,8 +2,30 @@ import type { FastifyInstance } from 'fastify';
 import { eq, and, isNull, isNotNull, count, sql, desc, lte } from 'drizzle-orm';
 import { notifications } from '@crm/db';
 import { createNotification, type CreateNotificationInput } from '../services/notifications.js';
+import { sseRegistry } from '../lib/sse-registry.js';
 
 export default async function notificationsRoutes(app: FastifyInstance) {
+  // GET /api/notifications/stream — SSE endpoint for real-time notifications
+  app.get('/api/notifications/stream', { preHandler: app.requireAuth }, async (req, reply) => {
+    const userId = req.user!.id;
+    const raw = reply.raw;
+
+    raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    sseRegistry.register(userId, raw);
+
+    req.raw.on('close', () => {
+      sseRegistry.unregister(userId);
+    });
+
+    // Prevent Fastify from ending the response
+    reply.hijack();
+  });
+
   // GET /api/notifications — list notifications for the authenticated user
   app.get('/api/notifications', { preHandler: app.requireAuth }, async (req, reply) => {
     const query = req.query as {

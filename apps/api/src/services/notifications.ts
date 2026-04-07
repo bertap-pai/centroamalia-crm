@@ -1,5 +1,6 @@
 import { notifications, type Notification } from '@crm/db';
 import type { FastifyInstance } from 'fastify';
+import { sseRegistry } from '../lib/sse-registry.js';
 
 export type NotificationType =
   | 'workflow_run_failed'
@@ -41,7 +42,23 @@ export async function createNotification(
     })
     .returning();
 
-  // TODO: push SSE event (Phase 2)
+  const created = rows[0]!;
 
-  return rows[0]!;
+  // Push real-time SSE event if user has an open connection
+  sseRegistry.push(
+    input.user_id,
+    'notification_created',
+    JSON.stringify({
+      id: created.id,
+      type: created.type,
+      priority: created.priority,
+      title: created.title,
+      body: created.body,
+      entity_type: created.entityType,
+      entity_id: created.entityId,
+      created_at: created.createdAt,
+    }),
+  );
+
+  return created;
 }
