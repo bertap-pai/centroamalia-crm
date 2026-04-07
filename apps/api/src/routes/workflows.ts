@@ -578,4 +578,67 @@ export default async function workflowsRoutes(app: FastifyInstance) {
       return { data };
     },
   );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // STEP CRUD
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // POST /api/workflows/:id/steps
+  app.post<{ Params: { id: string }; Body: { type: string; config: Record<string, unknown>; order: number; parentStepId?: string; branch?: string } }>(
+    '/api/workflows/:id/steps',
+    { preHandler: app.requireAuth },
+    async (req, reply) => {
+      const { id } = req.params;
+      const { type, config, order, parentStepId, branch } = req.body;
+
+      const [existing] = await app.db
+        .select({ id: workflows.id, status: workflows.status })
+        .from(workflows)
+        .where(and(eq(workflows.id, id), isNull(workflows.deletedAt)))
+        .limit(1);
+
+      if (!existing) return reply.code(404).send({ error: 'not_found' });
+
+      const [step] = await app.db
+        .insert(workflowSteps)
+        .values({ workflowId: id, type: type as any, config, order, parentStepId: parentStepId ?? null, branch: branch ?? null })
+        .returning();
+
+      return reply.code(201).send(step);
+    },
+  );
+
+  // PATCH /api/workflows/:id/steps/:stepId
+  app.patch<{ Params: { id: string; stepId: string }; Body: { config?: Record<string, unknown>; order?: number } }>(
+    '/api/workflows/:id/steps/:stepId',
+    { preHandler: app.requireAuth },
+    async (req, reply) => {
+      const { stepId } = req.params;
+      const { config, order } = req.body;
+
+      const updates: Record<string, unknown> = {};
+      if (config !== undefined) updates.config = config;
+      if (order !== undefined) updates.order = order;
+
+      const [step] = await app.db
+        .update(workflowSteps)
+        .set(updates as any)
+        .where(eq(workflowSteps.id, stepId))
+        .returning();
+
+      if (!step) return reply.code(404).send({ error: 'not_found' });
+      return reply.send(step);
+    },
+  );
+
+  // DELETE /api/workflows/:id/steps/:stepId
+  app.delete<{ Params: { id: string; stepId: string } }>(
+    '/api/workflows/:id/steps/:stepId',
+    { preHandler: app.requireAuth },
+    async (req, reply) => {
+      const { stepId } = req.params;
+      await app.db.delete(workflowSteps).where(eq(workflowSteps.id, stepId));
+      return reply.code(204).send();
+    },
+  );
 }

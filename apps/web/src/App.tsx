@@ -20,6 +20,8 @@ import FormEmbedPage from './pages/FormEmbedPage.js';
 import ListsIndexPage from './pages/ListsIndexPage.js';
 import ListDetailPage from './pages/ListDetailPage.js';
 import NotificationsPage from './pages/NotificationsPage.js';
+import WorkflowsListPage from './pages/WorkflowsListPage.js';
+import WorkflowEditorPage from './pages/WorkflowEditorPage.js';
 import './styles/globals.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -169,6 +171,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ListDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workflows"
+            element={
+              <ProtectedRoute>
+                <WorkflowsListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workflows/:id"
+            element={
+              <ProtectedRoute>
+                <WorkflowEditorPage />
               </ProtectedRoute>
             }
           />

@@ -66,6 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/lists" label="Llistes" icon="📋" />
           <NavItem to="/tasks" label="Tasques" icon="✅" />
           <NavItem to="/forms" label="Formularis" icon="📄" />
+          <NavItem to="/workflows" label="Workflows" icon="⚡" />
           {user?.role === 'admin' && (
             <>
               <div style={{ margin: '12px 10px 6px', fontSize: 10, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: 0.8 }}>

@@ -441,10 +441,64 @@ export default function ContactDetailPage() {
         )}
       </div>
 
+      {/* Workflows */}
+      <ContactWorkflowsSection contactId={contact.id} />
+
       {/* Notes & Tasks */}
       <div style={{ marginTop: 20 }}>
         <NotesTasks objectType="contact" objectId={contact.id} />
       </div>
+    </div>
+  );
+}
+
+function ContactWorkflowsSection({ contactId }: { contactId: string }) {
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    api.get(`/api/contacts/${contactId}/workflow-history`)
+      .then((res) => setHistory(res.data ?? res))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [contactId]);
+
+  return (
+    <div style={{ marginTop: 20, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 18px' }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+      >
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Workflows</h3>
+        <span style={{ fontSize: 12, color: '#888' }}>{loading ? '...' : `${history.length} execuci${history.length === 1 ? 'ó' : 'ons'}`}</span>
+      </div>
+      {expanded && !loading && (
+        history.length === 0 ? (
+          <div style={{ padding: '12px 0', color: '#888', fontSize: 13 }}>Cap workflow per a aquest contacte.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 10 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #eee', textAlign: 'left' }}>
+                <th style={{ padding: '6px 8px', fontWeight: 600, color: '#666' }}>Workflow</th>
+                <th style={{ padding: '6px 8px', fontWeight: 600, color: '#666' }}>Estat</th>
+                <th style={{ padding: '6px 8px', fontWeight: 600, color: '#666' }}>Inici</th>
+                <th style={{ padding: '6px 8px', fontWeight: 600, color: '#666' }}>Fi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((r: any) => (
+                <tr key={r.id} style={{ borderBottom: '1px solid #f3f3f3' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 500 }}>{r.workflowName ?? r.workflowId}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.status}</td>
+                  <td style={{ padding: '6px 8px', color: '#888' }}>{new Date(r.startedAt).toLocaleDateString('ca-ES')}</td>
+                  <td style={{ padding: '6px 8px', color: '#888' }}>{r.completedAt ? new Date(r.completedAt).toLocaleDateString('ca-ES') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      )}
     </div>
   );
 }
