@@ -5,6 +5,7 @@ import {
   workflowEnrollments,
   workflowTriggerSchedules,
   contacts,
+  users,
   type Workflow,
   type FilterGroup,
 } from '@crm/db';
@@ -14,6 +15,7 @@ import { eventBus, type CrmEventMap, type CrmEventType } from '../lib/event-bus.
 type Db = FastifyInstance['db'];
 import { evaluateFilters } from './workflow-filter.js';
 import { executeRun } from './workflow-executor.js';
+import { createNotification } from './notifications.js';
 
 // ── Workflow cache ─────────────────────────────────────────────────────
 // Map<triggerType, Workflow[]> — populated on first use, invalidated on publish/pause
@@ -278,6 +280,36 @@ async function processEvent<E extends CrmEventType>(
   }
 }
 
+// ── Critical error notification ─────────────────────────────────────────
+
+async function notifyCriticalEngineError(
+  db: Db,
+  eventType: string,
+  err: unknown,
+): Promise<void> {
+  const errorMessage = err instanceof Error ? err.message : String(err);
+  console.error(`[workflow-engine] CRITICAL ERROR on event ${eventType}:`, err);
+
+  try {
+    const [adminUser] = await db.select({ id: users.id }).from(users).limit(1);
+
+    if (adminUser) {
+      await createNotification(db, {
+        user_id: adminUser.id,
+        type: 'workflow_engine_error',
+        priority: 'critical',
+        title: `Workflow engine critical error on "${eventType}"`,
+        body: `Error: ${errorMessage}. Check server logs for full stack trace.`,
+        entity_type: 'workflow_engine',
+        entity_id: eventType,
+        created_by: 'workflow_engine',
+      });
+    }
+  } catch {
+    // Don't let notification failure hide the original error
+  }
+}
+
 // ── Initialize: subscribe to all event bus events ──────────────────────
 
 export function initWorkflowEngine(db: Db): void {
@@ -294,10 +326,12 @@ export function initWorkflowEngine(db: Db): void {
   ];
 
   for (const eventType of eventTypes) {
-    eventBus.on(eventType, (payload) => {
-      processEvent(db, eventType, payload).catch((err) => {
-        console.error(`[workflow-engine] Failed to process ${eventType}:`, err);
-      });
+    eventBus.on(eventType, async (payload) => {
+      try {
+        await processEvent(db, eventType, payload);
+      } catch (err) {
+        await notifyCriticalEngineError(db, eventType, err);
+      }
     });
   }
 }
