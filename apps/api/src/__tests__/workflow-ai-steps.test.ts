@@ -56,3 +56,22 @@ describe('extractClassification', () => {
     assert.equal(result, null);
   });
 });
+
+describe('trigger_agent merge tag resolution', () => {
+  it('resolves contact merge tags in title', () => {
+    const ctx = { contact: { first_name: 'Ana', last_name: 'García' } };
+    const template = 'Onboarding task for {{contact.first_name}} {{contact.last_name}}';
+    const resolved = resolveMergeTags(template, ctx);
+    assert.equal(resolved, 'Onboarding task for Ana García');
+  });
+
+  it('resolves var namespace in message', () => {
+    const ctx = {
+      contact: { first_name: 'Ana' },
+      var: { ai_summary: 'Interested in premium plan' },
+    };
+    const template = '{{contact.first_name}} context: {{var.ai_summary}}';
+    const resolved = resolveMergeTags(template, ctx);
+    assert.equal(resolved, 'Ana context: Interested in premium plan');
+  });
+});

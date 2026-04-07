@@ -33,6 +33,7 @@ import {
 } from './step-executors/enroll-in-workflow.js';
 import { executeRequestAiContent, type RequestAiContentConfig } from './step-executors/request-ai-content.js';
 import { executeAiClassify, type AiClassifyConfig } from './step-executors/ai-classify.js';
+import { executeTriggerAgent, type TriggerAgentConfig } from './step-executors/trigger-agent.js';
 import { createNotification } from './notifications.js';
 
 // Retry schedule: 1min, 5min, 30min
@@ -358,6 +359,14 @@ async function executeSingleStep(
         db,
         run,
         config as unknown as AiClassifyConfig,
+        mergeContext,
+      );
+      break;
+
+    case 'trigger_agent':
+      await executeTriggerAgent(
+        run,
+        config as unknown as TriggerAgentConfig,
         mergeContext,
       );
       break;
