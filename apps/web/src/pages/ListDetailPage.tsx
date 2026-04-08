@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import ListCriteriaBuilder from '../components/ListCriteriaBuilder.js';
 
 interface ListDetail {
   id: string;
@@ -388,6 +389,7 @@ function EditListModal({
 }) {
   const [name, setName] = useState(list.name);
   const [description, setDescription] = useState(list.description ?? '');
+  const [criteria, setCriteria] = useState<Record<string, string>>(list.criteria ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -397,7 +399,8 @@ function EditListModal({
     setSaving(true);
     setError('');
     try {
-      await api.patch(`/api/lists/${list.id}`, { name: name.trim(), description: description.trim() || null });
+      const criteriaPayload = list.kind === 'dynamic' && Object.keys(criteria).length > 0 ? criteria : null;
+      await api.patch(`/api/lists/${list.id}`, { name: name.trim(), description: description.trim() || null, ...(list.kind === 'dynamic' ? { criteria: criteriaPayload } : {}) });
       onSuccess();
     } catch (err: any) {
       setError(err.message ?? 'Error en guardar.');
@@ -408,7 +411,7 @@ function EditListModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: '90%', maxWidth: 440, boxShadow: '0 8px 32px rgba(0,0,0,0.16)' }}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: '90%', maxWidth: list.kind === 'dynamic' ? 600 : 440, boxShadow: '0 8px 32px rgba(0,0,0,0.16)', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ margin: '0 0 20px', fontSize: 17, fontWeight: 700 }}>Editar llista</h2>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 14 }}>
@@ -429,6 +432,11 @@ function EditListModal({
               style={{ width: '100%', padding: '7px 10px', border: '1px solid #ddd', borderRadius: 5, fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
             />
           </div>
+          {list.kind === 'dynamic' && (
+            <div style={{ marginBottom: 14 }}>
+              <ListCriteriaBuilder objectType={list.objectType} criteria={criteria} onChange={setCriteria} />
+            </div>
+          )}
           {error && <div style={{ color: 'var(--color-error)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button type="button" onClick={onClose} style={{ padding: '7px 16px', border: '1px solid #ddd', borderRadius: 5, background: '#fff', cursor: 'pointer', fontSize: 13 }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import ListCriteriaBuilder from '../components/ListCriteriaBuilder.js';
 
 interface ListItem {
   id: string;
@@ -197,6 +198,7 @@ function ListFormModal({
   const [description, setDescription] = useState(list?.description ?? '');
   const [objectType, setObjectType] = useState<'contact' | 'deal'>(list?.objectType ?? 'contact');
   const [kind, setKind] = useState<'static' | 'dynamic'>(list?.kind ?? 'static');
+  const [criteria, setCriteria] = useState<Record<string, string>>(list?.criteria ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -206,10 +208,12 @@ function ListFormModal({
     setSaving(true);
     setError('');
     try {
+      const effectiveKind = isEdit ? list!.kind : kind;
+      const criteriaPayload = effectiveKind === 'dynamic' && Object.keys(criteria).length > 0 ? criteria : undefined;
       if (isEdit && list) {
-        await api.patch(`/api/lists/${list.id}`, { name: name.trim(), description: description.trim() || null });
+        await api.patch(`/api/lists/${list.id}`, { name: name.trim(), description: description.trim() || null, ...(list.kind === 'dynamic' ? { criteria: criteriaPayload ?? null } : {}) });
       } else {
-        await api.post('/api/lists', { name: name.trim(), description: description.trim() || null, objectType, kind, isTeam: false });
+        await api.post('/api/lists', { name: name.trim(), description: description.trim() || null, objectType, kind, isTeam: false, ...(kind === 'dynamic' ? { criteria: criteriaPayload ?? null } : {}) });
       }
       onSuccess();
     } catch (err: any) {
@@ -221,7 +225,7 @@ function ListFormModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: '90%', maxWidth: 440, boxShadow: '0 8px 32px rgba(0,0,0,0.16)' }}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: '90%', maxWidth: (kind === 'dynamic' || (isEdit && list?.kind === 'dynamic')) ? 600 : 440, boxShadow: '0 8px 32px rgba(0,0,0,0.16)', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ margin: '0 0 20px', fontSize: 17, fontWeight: 700 }}>
           {isEdit ? 'Editar llista' : 'Nova llista'}
         </h2>
@@ -270,12 +274,17 @@ function ListFormModal({
                   ))}
                 </div>
                 {kind === 'dynamic' && (
-                  <div style={{ marginTop: 8, fontSize: 11, color: '#888', background: '#f5f5f5', borderRadius: 5, padding: '7px 10px' }}>
-                    Les llistes dinàmiques es calculen automàticament a partir de criteris. Els criteris es configuren des del detall de la llista.
+                  <div style={{ marginTop: 12 }}>
+                    <ListCriteriaBuilder objectType={objectType} criteria={criteria} onChange={setCriteria} />
                   </div>
                 )}
               </div>
             </>
+          )}
+          {isEdit && list?.kind === 'dynamic' && (
+            <div style={{ marginBottom: 14 }}>
+              <ListCriteriaBuilder objectType={list.objectType} criteria={criteria} onChange={setCriteria} />
+            </div>
           )}
           {error && <div style={{ color: 'var(--color-error)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
