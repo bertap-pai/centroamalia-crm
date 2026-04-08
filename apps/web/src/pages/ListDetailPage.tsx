@@ -74,6 +74,8 @@ export default function ListDetailPage() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [viewFilters, setViewFilters] = useState<Record<string, string>>({});
+  const [showViewFilters, setShowViewFilters] = useState(false);
 
   const searchRef = useRef(search);
   searchRef.current = search;
@@ -93,14 +95,20 @@ export default function ListDetailPage() {
     setMembersLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
     if (search) params.set('q', search);
+    // Append view filters for static lists
+    if (currentList.kind === 'static') {
+      for (const [k, v] of Object.entries(viewFilters)) {
+        if (v) params.set(k, v);
+      }
+    }
     api.get(`/api/lists/${id}/members?${params}`)
       .then((data) => { setMembers(data.data); setTotal(data.total); setMembersError(''); })
       .catch(() => setMembersError('Error carregant els membres.'))
       .finally(() => setMembersLoading(false));
   }
 
-  useEffect(() => { loadList(); }, [id]);
-  useEffect(() => { if (list) loadMembers(); }, [list, page, search]);
+  useEffect(() => { loadList(); setViewFilters({}); setShowViewFilters(false); }, [id]);
+  useEffect(() => { if (list) loadMembers(); }, [list, page, search, viewFilters]);
 
   // Debounced search
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -191,17 +199,50 @@ export default function ListDetailPage() {
         </div>
       )}
 
-      {/* Search (contacts only — deals don't have a name field) */}
-      {list.objectType === 'contact' && (
-        <div style={{ marginBottom: 12 }}>
-          <input
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Cercar membres..."
-            style={{ padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, width: 260 }}
-          />
+      {/* Search + view filters */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {list.objectType === 'contact' && (
+            <input
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Cercar membres..."
+              style={{ padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, width: 260 }}
+            />
+          )}
+          {list.kind === 'static' && (
+            <button
+              onClick={() => setShowViewFilters((v) => !v)}
+              style={{
+                fontSize: 12, fontWeight: 600,
+                color: showViewFilters ? '#fff' : '#555',
+                background: showViewFilters ? 'var(--color-primary)' : '#fff',
+                border: '1px solid',
+                borderColor: showViewFilters ? 'var(--color-primary)' : '#ddd',
+                borderRadius: 6, padding: '7px 14px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              Filtres
+              {Object.keys(viewFilters).length > 0 && (
+                <span style={{
+                  background: showViewFilters ? 'rgba(255,255,255,0.3)' : 'var(--color-primary)',
+                  color: '#fff', borderRadius: '50%', width: 18, height: 18,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700,
+                }}>
+                  {Object.keys(viewFilters).length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
-      )}
+        {list.kind === 'static' && showViewFilters && (
+          <div style={{ marginTop: 10 }}>
+            <ListCriteriaBuilder objectType={list.objectType} criteria={viewFilters} onChange={(c) => { setViewFilters(c); setPage(1); }} />
+          </div>
+        )}
+      </div>
 
       {membersError && <div style={{ color: 'var(--color-error)', marginBottom: 12, fontSize: 13 }}>{membersError}</div>}
 
@@ -472,15 +513,22 @@ function AddMemberModal({
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [modalFilters, setModalFilters] = useState<Record<string, string>>({});
+  const [showModalFilters, setShowModalFilters] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modalFiltersRef = useRef(modalFilters);
+  modalFiltersRef.current = modalFilters;
 
-  function doSearch(q: string) {
-    if (!q.trim()) { setResults([]); return; }
+  function doSearch(q: string, filters = modalFiltersRef.current) {
+    if (!q.trim() && Object.keys(filters).length === 0) { setResults([]); return; }
     setSearching(true);
-    const endpoint = list.objectType === 'contact'
-      ? `/api/contacts?q=${encodeURIComponent(q)}&pageSize=10`
-      : `/api/deals?q=${encodeURIComponent(q)}&pageSize=10`;
-    api.get(endpoint)
+    const params = new URLSearchParams({ pageSize: '10' });
+    if (q.trim()) params.set('q', q.trim());
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) params.set(k, v);
+    }
+    const base = list.objectType === 'contact' ? '/api/contacts' : '/api/deals';
+    api.get(`${base}?${params}`)
       .then((data) => setResults(data.data ?? []))
       .catch(() => setResults([]))
       .finally(() => setSearching(false));
@@ -490,6 +538,12 @@ function AddMemberModal({
     setSearch(val);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => doSearch(val), 350);
+  }
+
+  function handleModalFilterChange(filters: Record<string, string>) {
+    setModalFilters(filters);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => doSearch(search, filters), 350);
   }
 
   async function handleAdd(objectId: string) {
@@ -526,9 +580,24 @@ function AddMemberModal({
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder={list.objectType === 'contact' ? 'Cercar per nom, email, telèfon...' : 'Cercar deal...'}
-          style={{ padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, marginBottom: 12 }}
+          style={{ padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, marginBottom: 8 }}
           autoFocus
         />
+        <button
+          onClick={() => setShowModalFilters((v) => !v)}
+          style={{
+            fontSize: 11, fontWeight: 600, color: showModalFilters ? 'var(--color-primary)' : '#777',
+            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginBottom: 8,
+          }}
+        >
+          {showModalFilters ? '▾ Amagar filtres' : '▸ Filtres avançats'}
+          {Object.keys(modalFilters).length > 0 && ` (${Object.keys(modalFilters).length})`}
+        </button>
+        {showModalFilters && (
+          <div style={{ marginBottom: 10 }}>
+            <ListCriteriaBuilder objectType={list.objectType} criteria={modalFilters} onChange={handleModalFilterChange} />
+          </div>
+        )}
         {error && <div style={{ color: 'var(--color-error)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 60 }}>
           {searching && <div style={{ padding: '12px 0', color: '#999', fontSize: 13 }}>Cercant...</div>}
