@@ -7,7 +7,7 @@ export default fp(async (app) => {
   await app.register(cookie);
   await app.register(session, {
     secret: env.SESSION_SECRET,
-    saveUninitialized: false,
+    saveUninitialized: true,
     cookie: {
       secure: env.COOKIE_SECURE,
       httpOnly: true,
