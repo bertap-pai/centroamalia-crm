@@ -94,9 +94,20 @@ export default function FormEditorPage() {
   const [crmProperties, setCrmProperties] = useState<Array<{ key: string; label: string }>>([]);
 
   useEffect(() => {
+    const CORE_CONTACT_FIELDS = [
+      { key: 'firstName', label: 'Nom' },
+      { key: 'lastName', label: 'Cognom' },
+      { key: 'email', label: 'Email' },
+      { key: 'phone', label: 'Telèfon' },
+    ];
+
     api.get('/api/properties?scope=contact')
       .then((data: Array<{ key: string; label: string }>) => {
-        setCrmProperties([{ key: '', label: '— No mapejat —' }, ...data.map((p) => ({ key: p.key, label: p.label }))]);
+        setCrmProperties([
+          { key: '', label: '— No mapejat —' },
+          ...CORE_CONTACT_FIELDS,
+          ...data.map((p) => ({ key: p.key, label: p.label })),
+        ]);
       })
       .catch(() => {/* silently ignore — mapping dropdown will be empty */});
   }, []);

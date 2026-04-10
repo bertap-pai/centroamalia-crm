@@ -254,6 +254,14 @@ export default async function formsRoutes(app: FastifyInstance) {
     const emailValue = emailField ? body[emailField.key]?.trim() : undefined;
     const phoneValue = phoneField ? body[phoneField.key]?.trim() : undefined;
 
+    // Reserved crmPropertyKey sentinels that write to core contact columns (not propertyDefinitions)
+    const coreFieldMap: Record<string, string | undefined> = {};
+    for (const coreKey of ['firstName', 'lastName'] as const) {
+      const field = fields.find((f) => f.crmPropertyKey === coreKey);
+      const val = field ? body[field.key]?.trim() : undefined;
+      if (val) coreFieldMap[coreKey] = val;
+    }
+
     if (emailValue || phoneValue) {
       // Try to find existing contact
       let existingContact = null;
@@ -281,23 +289,33 @@ export default async function formsRoutes(app: FastifyInstance) {
 
       if (existingContact) {
         createdContactId = existingContact.id;
+        // Update core fields on existing contact if provided
+        if (Object.keys(coreFieldMap).length > 0) {
+          await app.db
+            .update(contacts)
+            .set({ ...coreFieldMap, updatedAt: new Date() })
+            .where(eq(contacts.id, createdContactId!));
+        }
       } else {
-        // Create new contact
+        // Create new contact with core fields
         const phoneE164 = phoneValue ? normalizePhone(phoneValue) : null;
         const [newContact] = await app.db
           .insert(contacts)
           .values({
             email: emailValue ?? null,
             phoneE164: phoneE164 ?? null,
+            firstName: coreFieldMap['firstName'] ?? null,
+            lastName: coreFieldMap['lastName'] ?? null,
           })
           .returning();
         createdContactId = newContact!.id;
       }
 
-      // Write CRM-mapped properties
+      // Write CRM-mapped properties (skip core contact fields handled above)
+      const CORE_CONTACT_KEYS = new Set(['firstName', 'lastName', 'email', 'phone']);
       if (createdContactId) {
         const mappedKeys = fields
-          .filter((f) => f.crmPropertyKey && body[f.key])
+          .filter((f) => f.crmPropertyKey && body[f.key] && !CORE_CONTACT_KEYS.has(f.crmPropertyKey))
           .map((f) => f.crmPropertyKey!);
 
         if (mappedKeys.length > 0) {
