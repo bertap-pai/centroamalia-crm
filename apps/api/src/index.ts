@@ -20,6 +20,7 @@ import usersRoutes from './routes/users.js';
 import formsRoutes from './routes/forms.js';
 import listsRoutes from './routes/lists.js';
 import metaWebhookRoutes from './routes/webhooks/meta.js';
+import tiktokWebhookRoutes from './routes/webhooks/tiktok.js';
 import notificationsRoutes from './routes/notifications.js';
 import workflowsRoutes from './routes/workflows.js';
 import workflowEmitterPlugin from './plugins/workflow-emitter.js';
@@ -69,6 +70,7 @@ async function start() {
   await app.register(formsRoutes);
   await app.register(listsRoutes);
   await app.register(metaWebhookRoutes);
+  await app.register(tiktokWebhookRoutes);
   await app.register(notificationsRoutes);
   await app.register(workflowsRoutes);
 

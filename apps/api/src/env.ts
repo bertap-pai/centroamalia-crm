@@ -22,6 +22,11 @@ export const env = {
   META_PAGE_ACCESS_TOKEN: process.env['META_PAGE_ACCESS_TOKEN'] ?? '',
   META_DEFAULT_PIPELINE_ID: process.env['META_DEFAULT_PIPELINE_ID'] ?? '',
   META_DEFAULT_STAGE_ID: process.env['META_DEFAULT_STAGE_ID'] ?? '',
+  // TikTok Lead Ads webhook
+  TIKTOK_WEBHOOK_SECRET: process.env['TIKTOK_WEBHOOK_SECRET'] ?? '',
+  TIKTOK_ACCESS_TOKEN: process.env['TIKTOK_ACCESS_TOKEN'] ?? '',
+  TIKTOK_DEFAULT_PIPELINE_ID: process.env['TIKTOK_DEFAULT_PIPELINE_ID'] ?? '',
+  TIKTOK_DEFAULT_STAGE_ID: process.env['TIKTOK_DEFAULT_STAGE_ID'] ?? '',
   // Downtime alert: fire notification if server was offline longer than this
   DOWNTIME_ALERT_THRESHOLD_MINUTES: parseInt(process.env['DOWNTIME_ALERT_THRESHOLD_MINUTES'] ?? '10', 10),
 } as const;
