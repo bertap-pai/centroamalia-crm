@@ -25,6 +25,7 @@ import workflowsRoutes from './routes/workflows.js';
 import workflowEmitterPlugin from './plugins/workflow-emitter.js';
 import workflowSchedulerPlugin from './services/workflow-scheduler.js';
 import { initWorkflowEngine } from './services/workflow-engine.js';
+import { startHeartbeatMonitor } from './lib/heartbeat-monitor.js';
 import { notifications } from '@crm/db';
 import { lt, sql } from 'drizzle-orm';
 
@@ -79,6 +80,9 @@ async function start() {
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
+
+  // Downtime detection — check for gap on startup, then upsert every 5 min
+  await startHeartbeatMonitor(app);
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API listening on port ${env.PORT}`);
