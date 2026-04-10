@@ -101,19 +101,14 @@ export default function FormEditorPage() {
       { key: 'phone', label: 'Telèfon', group: 'Contacte (bàsic)' },
     ];
 
-    api.get('/api/properties')
-      .then((data: Array<{ key: string; label: string; scope: string }>) => {
+    api.get('/api/properties?scope=contact')
+      .then((data: Array<{ key: string; label: string }>) => {
         const contactProps = data
-          .filter((p) => p.scope === 'contact' || p.scope === 'both')
           .map((p) => ({ key: p.key, label: p.label, group: 'Propietats contacte' }));
-        const dealProps = data
-          .filter((p) => p.scope === 'deal' || p.scope === 'both')
-          .map((p) => ({ key: p.key, label: p.label, group: 'Propietats oportunitat' }));
         setCrmProperties([
           { key: '', label: '— No mapejat —', group: '' },
           ...CORE_CONTACT_FIELDS,
           ...contactProps,
-          ...dealProps,
         ]);
       })
       .catch(() => {/* silently ignore — mapping dropdown will be empty */});
