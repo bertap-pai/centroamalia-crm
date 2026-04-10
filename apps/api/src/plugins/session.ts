@@ -12,7 +12,7 @@ export default fp(async (app) => {
       secure: env.COOKIE_SECURE,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: env.COOKIE_SECURE ? 'strict' : 'lax',
+      sameSite: 'lax',
     },
   });
 });
