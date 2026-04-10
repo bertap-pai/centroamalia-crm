@@ -91,22 +91,29 @@ export default function FormEditorPage() {
   const [saved, setSaved] = useState(false);
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null);
   const [tab, setTab] = useState<'editor' | 'preview' | 'embed'>('editor');
-  const [crmProperties, setCrmProperties] = useState<Array<{ key: string; label: string }>>([]);
+  const [crmProperties, setCrmProperties] = useState<Array<{ key: string; label: string; group: string }>>([]);
 
   useEffect(() => {
     const CORE_CONTACT_FIELDS = [
-      { key: 'firstName', label: 'Nom' },
-      { key: 'lastName', label: 'Cognom' },
-      { key: 'email', label: 'Email' },
-      { key: 'phone', label: 'Telèfon' },
+      { key: 'firstName', label: 'Nom', group: 'Contacte (bàsic)' },
+      { key: 'lastName', label: 'Cognom', group: 'Contacte (bàsic)' },
+      { key: 'email', label: 'Email', group: 'Contacte (bàsic)' },
+      { key: 'phone', label: 'Telèfon', group: 'Contacte (bàsic)' },
     ];
 
-    api.get('/api/properties?scope=contact')
-      .then((data: Array<{ key: string; label: string }>) => {
+    api.get('/api/properties')
+      .then((data: Array<{ key: string; label: string; scope: string }>) => {
+        const contactProps = data
+          .filter((p) => p.scope === 'contact' || p.scope === 'both')
+          .map((p) => ({ key: p.key, label: p.label, group: 'Propietats contacte' }));
+        const dealProps = data
+          .filter((p) => p.scope === 'deal' || p.scope === 'both')
+          .map((p) => ({ key: p.key, label: p.label, group: 'Propietats oportunitat' }));
         setCrmProperties([
-          { key: '', label: '— No mapejat —' },
+          { key: '', label: '— No mapejat —', group: '' },
           ...CORE_CONTACT_FIELDS,
-          ...data.map((p) => ({ key: p.key, label: p.label })),
+          ...contactProps,
+          ...dealProps,
         ]);
       })
       .catch(() => {/* silently ignore — mapping dropdown will be empty */});
@@ -481,7 +488,7 @@ export default function FormEditorPage() {
 function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
   field: FormField;
   isAdmin: boolean;
-  crmProperties: Array<{ key: string; label: string }>;
+  crmProperties: Array<{ key: string; label: string; group: string }>;
   onChange: (changes: Partial<FormField>) => void;
 }) {
   function handleLabelChange(label: string) {
@@ -614,9 +621,21 @@ function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
               onChange={(e) => onChange({ crmPropertyKey: e.target.value })}
               style={{ ...inputStyle, width: '100%' }}
             >
-              {crmProperties.map((k) => (
-                <option key={k.key} value={k.key}>{k.label}</option>
-              ))}
+              {(() => {
+                const grouped = crmProperties.reduce<Record<string, typeof crmProperties>>((acc, p) => {
+                  (acc[p.group] = acc[p.group] ?? []).push(p);
+                  return acc;
+                }, {});
+                return Object.entries(grouped).map(([group, opts]) =>
+                  group ? (
+                    <optgroup key={group} label={group}>
+                      {opts.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                    </optgroup>
+                  ) : (
+                    opts.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)
+                  )
+                );
+              })()}
             </select>
             <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
               Vincular el valor d'aquest camp a un atribut del contacte al CRM.
