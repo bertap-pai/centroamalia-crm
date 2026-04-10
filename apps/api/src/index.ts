@@ -35,7 +35,7 @@ const loggerOptions: FastifyServerOptions['logger'] =
     ? { level: 'info' }
     : { level: 'debug', transport: { target: 'pino-pretty', options: { colorize: true } } };
 
-const app = Fastify({ logger: loggerOptions });
+const app = Fastify({ logger: loggerOptions, trustProxy: true });
 
 async function start() {
   // Core infrastructure
