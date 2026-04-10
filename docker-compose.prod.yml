@@ -39,9 +39,8 @@ services:
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-centroamalia.com}
       API_URL: ${API_URL}
       WEB_URL: ${WEB_URL}
-    # Not exposed directly; nginx proxies /api
-    expose:
-      - '3000'
+    ports:
+      - '127.0.0.1:3000:3000'
 
   web:
     build:
