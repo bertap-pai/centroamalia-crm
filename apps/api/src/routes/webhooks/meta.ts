@@ -37,6 +37,16 @@ declare module 'fastify' {
 }
 
 export default async function metaWebhookRoutes(app: FastifyInstance) {
+  // Warn at startup when required Meta env vars are missing
+  const missingVars = (
+    ['META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_DEFAULT_PIPELINE_ID', 'META_DEFAULT_STAGE_ID'] as const
+  ).filter((k) => !env[k]);
+  if (missingVars.length > 0) {
+    app.log.warn(
+      `[meta-webhook] Meta Lead Ads integration is DISABLED — missing env vars: ${missingVars.join(', ')}`,
+    );
+  }
+
   // Capture raw body for HMAC verification (scoped to this plugin only)
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
     (req as FastifyRequest).rawBody = body as Buffer;
@@ -67,6 +77,11 @@ export default async function metaWebhookRoutes(app: FastifyInstance) {
 
       const signature = (req.headers['x-hub-signature-256'] as string) ?? '';
       const rawBody = req.rawBody;
+
+      if (!env.META_APP_SECRET) {
+        app.log.error('[meta-webhook] META_APP_SECRET is not configured — cannot verify webhook signature. Discarding.');
+        return;
+      }
 
       if (!rawBody) {
         app.log.error('[meta-webhook] Missing raw body for HMAC verification');
