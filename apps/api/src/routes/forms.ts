@@ -198,6 +198,60 @@ export default async function formsRoutes(app: FastifyInstance) {
     return { ...updated, fields };
   });
 
+  // ------------------------------------------------------------------ clone
+  app.post('/api/forms/:id/clone', { preHandler: app.requireAdmin }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+
+    const [original] = await app.db.select().from(forms).where(eq(forms.id, id)).limit(1);
+    if (!original) return reply.code(404).send({ error: 'not_found' });
+
+    // Clone the form row
+    const [cloned] = await app.db
+      .insert(forms)
+      .values({
+        name: `Còpia de ${original.name}`,
+        description: original.description,
+        status: 'draft',
+        submitLabel: original.submitLabel,
+        successMessage: original.successMessage,
+        buttonStyle: original.buttonStyle,
+        createdByUserId: req.user!.id,
+      })
+      .returning();
+
+    // Clone all fields
+    const originalFields = await app.db
+      .select()
+      .from(formFields)
+      .where(eq(formFields.formId, id))
+      .orderBy(formFields.position);
+
+    if (originalFields.length > 0) {
+      await app.db.insert(formFields).values(
+        originalFields.map((f) => ({
+          formId: cloned!.id,
+          key: f.key,
+          label: f.label,
+          type: f.type,
+          placeholder: f.placeholder,
+          isRequired: f.isRequired,
+          isVisible: f.isVisible,
+          position: f.position,
+          options: f.options,
+          crmPropertyKey: f.crmPropertyKey,
+        })),
+      );
+    }
+
+    const clonedFields = await app.db
+      .select()
+      .from(formFields)
+      .where(eq(formFields.formId, cloned!.id))
+      .orderBy(formFields.position);
+
+    return reply.code(201).send({ ...cloned, fields: clonedFields });
+  });
+
   // ------------------------------------------------------------------ delete (soft)
   app.delete('/api/forms/:id', { preHandler: app.requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };

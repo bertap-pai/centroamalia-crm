@@ -35,6 +35,7 @@ export default function FormsListPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [cloningId, setCloningId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -159,12 +160,33 @@ export default function FormsListPage() {
                   {new Date(f.createdAt).toLocaleDateString('ca-ES')}
                 </td>
                 <td style={{ ...td, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => navigate(`/forms/${f.id}/submissions`)}
-                    style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 5, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#555' }}
-                  >
-                    Respostes
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => navigate(`/forms/${f.id}/submissions`)}
+                      style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 5, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#555' }}
+                    >
+                      Respostes
+                    </button>
+                    {user?.role === 'admin' && (
+                      <button
+                        disabled={cloningId === f.id}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setCloningId(f.id);
+                          try {
+                            const cloned = await api.post(`/api/forms/${f.id}/clone`, {});
+                            navigate(`/forms/${cloned.id}/edit`);
+                          } catch {
+                            setError('Error duplicant el formulari.');
+                            setCloningId(null);
+                          }
+                        }}
+                        style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 5, padding: '4px 10px', fontSize: 12, cursor: cloningId === f.id ? 'not-allowed' : 'pointer', color: '#555', opacity: cloningId === f.id ? 0.5 : 1 }}
+                      >
+                        {cloningId === f.id ? 'Duplicant...' : 'Duplicar'}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -278,6 +278,23 @@ export default function FormEditorPage() {
             {/* Fields list */}
             <div style={{ width: 340, borderRight: '1px solid var(--color-border)', padding: 20, overflowY: 'auto', background: '#fafafa' }}>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14, color: '#444' }}>Camps del formulari</div>
+              <div
+                onClick={() => setSelectedFieldIdx(null)}
+                style={{
+                  background: selectedFieldIdx === null ? '#fff3ee' : '#fff',
+                  border: `1px solid ${selectedFieldIdx === null ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  marginBottom: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span style={{ fontSize: 14 }}>⚙</span>
+                <div style={{ flex: 1, fontWeight: 500, fontSize: 13, color: '#444' }}>Configuració del formulari</div>
+              </div>
               {form.fields.map((field, idx) => (
                 <div
                   key={idx}
