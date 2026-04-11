@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { BASE_PATH } from './lib/base-path.js';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
@@ -24,6 +25,37 @@ import WorkflowsListPage from './pages/WorkflowsListPage.js';
 import WorkflowEditorPage from './pages/WorkflowEditorPage.js';
 import './styles/globals.css';
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 48, textAlign: 'center', color: '#666' }}>
+          <h2>Alguna cosa ha anat malament</h2>
+          <p>
+            Hi ha hagut un error inesperat.{' '}
+            <a href="/" onClick={() => this.setState({ hasError: false })}>
+              Torna a l&apos;inici
+            </a>
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div style={{ padding: 24, color: '#999' }}>Carregant...</div>;
@@ -41,159 +73,161 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter basename={BASE_PATH || '/'}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/contacts"
-            element={
-              <ProtectedRoute>
-                <ContactsListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/contacts/:id"
-            element={
-              <ProtectedRoute>
-                <ContactDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tasks"
-            element={
-              <ProtectedRoute>
-                <TasksPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/deals"
-            element={
-              <ProtectedRoute>
-                <DealsListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/deals/:id"
-            element={
-              <ProtectedRoute>
-                <DealDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <AdminRoute>
-                <AdminUsersPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/pipelines"
-            element={
-              <AdminRoute>
-                <AdminPipelinesPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/properties"
-            element={
-              <AdminRoute>
-                <AdminPropertiesPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/import"
-            element={
-              <AdminRoute>
-                <AdminImportPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/export"
-            element={
-              <AdminRoute>
-                <AdminExportPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/forms"
-            element={
-              <ProtectedRoute>
-                <FormsListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/forms/:id/edit"
-            element={
-              <ProtectedRoute>
-                <FormEditorPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/forms/:id/submissions"
-            element={
-              <ProtectedRoute>
-                <FormSubmissionsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/forms/embed/:id" element={<FormEmbedPage />} />
-          <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute>
-                <NotificationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/lists"
-            element={
-              <ProtectedRoute>
-                <ListsIndexPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/lists/:id"
-            element={
-              <ProtectedRoute>
-                <ListDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/workflows"
-            element={
-              <ProtectedRoute>
-                <WorkflowsListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/workflows/:id"
-            element={
-              <ProtectedRoute>
-                <WorkflowEditorPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/" element={<Navigate to="/contacts" replace />} />
-          <Route path="*" element={<Navigate to="/contacts" replace />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter basename={BASE_PATH || '/'}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/contacts"
+              element={
+                <ProtectedRoute>
+                  <ContactsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contacts/:id"
+              element={
+                <ProtectedRoute>
+                  <ContactDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <TasksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/deals"
+              element={
+                <ProtectedRoute>
+                  <DealsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/deals/:id"
+              element={
+                <ProtectedRoute>
+                  <DealDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <AdminUsersPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/pipelines"
+              element={
+                <AdminRoute>
+                  <AdminPipelinesPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/properties"
+              element={
+                <AdminRoute>
+                  <AdminPropertiesPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/import"
+              element={
+                <AdminRoute>
+                  <AdminImportPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/export"
+              element={
+                <AdminRoute>
+                  <AdminExportPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/forms"
+              element={
+                <ProtectedRoute>
+                  <FormsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/forms/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <FormEditorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/forms/:id/submissions"
+              element={
+                <ProtectedRoute>
+                  <FormSubmissionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/forms/embed/:id" element={<FormEmbedPage />} />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lists"
+              element={
+                <ProtectedRoute>
+                  <ListsIndexPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lists/:id"
+              element={
+                <ProtectedRoute>
+                  <ListDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/workflows"
+              element={
+                <ProtectedRoute>
+                  <WorkflowsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/workflows/:id"
+              element={
+                <ProtectedRoute>
+                  <WorkflowEditorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/" element={<Navigate to="/contacts" replace />} />
+            <Route path="*" element={<Navigate to="/contacts" replace />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

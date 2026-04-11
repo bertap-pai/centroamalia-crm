@@ -61,7 +61,19 @@ export default async function notificationsRoutes(app: FastifyInstance) {
 
     const [data, countRows] = await Promise.all([
       app.db
-        .select()
+        .select({
+          id: notifications.id,
+          type: notifications.type,
+          priority: notifications.priority,
+          title: notifications.title,
+          body: notifications.body,
+          entity_type: notifications.entityType,
+          entity_id: notifications.entityId,
+          read_at: notifications.readAt,
+          dismissed_at: notifications.dismissedAt,
+          created_at: notifications.createdAt,
+          created_by: notifications.createdBy,
+        })
         .from(notifications)
         .where(where)
         .orderBy(desc(notifications.createdAt))
