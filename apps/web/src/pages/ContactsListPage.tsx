@@ -97,6 +97,7 @@ export default function ContactsListPage() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const dragColRef = useRef<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Derived: prop-only keys (fixed keys excluded)
   const propColumns = allColumns.filter((k) => !CONTACT_FIXED_KEYS.has(k));
@@ -151,7 +152,7 @@ export default function ContactsListPage() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedSearch, includeArchived, page, allColumns, createdFrom, createdTo, propFilters, sortField, sortDir]);
+  }, [debouncedSearch, includeArchived, page, allColumns, createdFrom, createdTo, propFilters, sortField, sortDir, refreshKey]);
 
   function applyView(view: SavedView) {
     setActiveViewId(view.id);
@@ -590,8 +591,7 @@ export default function ContactsListPage() {
           onCreated={() => {
             setShowCreate(false);
             setPage(1);
-            setDebouncedSearch(search + ' ');  // force re-fetch
-            setTimeout(() => setDebouncedSearch(search), 50);
+            setRefreshKey((k) => k + 1);
           }}
         />
       )}
