@@ -83,6 +83,16 @@ export default async function metaWebhookRoutes(app: FastifyInstance) {
         return;
       }
 
+      if (!env.META_PAGE_ACCESS_TOKEN) {
+        app.log.error('[meta-webhook] META_PAGE_ACCESS_TOKEN is not configured — cannot fetch lead data. Discarding.');
+        return;
+      }
+
+      if (!env.META_DEFAULT_PIPELINE_ID || !env.META_DEFAULT_STAGE_ID) {
+        app.log.error('[meta-webhook] META_DEFAULT_PIPELINE_ID or META_DEFAULT_STAGE_ID is not configured. Discarding.');
+        return;
+      }
+
       if (!rawBody) {
         app.log.error('[meta-webhook] Missing raw body for HMAC verification');
         return;
