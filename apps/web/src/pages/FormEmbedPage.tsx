@@ -197,7 +197,7 @@ export default function FormEmbedPage() {
 
         {form.fields.map((field) => (
           <div key={field.key} style={{ marginBottom: 18 }}>
-            {field.type !== 'static_text' && (
+            {field.type !== 'static_text' && field.type !== 'checkbox' && (
               <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 5 }}>
                 {field.label}
                 {field.isRequired && <span style={{ color: '#e87d52', marginLeft: 3 }}>*</span>}
@@ -248,6 +248,7 @@ export default function FormEmbedPage() {
                   style={{ marginTop: 2, width: 16, height: 16 }}
                 />
                 <span style={{ fontSize: 13, color: '#555' }}>{field.placeholder || field.label}</span>
+                {field.isRequired && <span style={{ color: '#e87d52', marginLeft: 3 }}>*</span>}
               </label>
             ) : (
               <input

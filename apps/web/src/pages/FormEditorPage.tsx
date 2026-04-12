@@ -702,7 +702,7 @@ function FormPreview({ form }: { form: FormData }) {
       {form.description && <p style={{ margin: '0 0 24px', color: '#666', fontSize: 14 }}>{form.description}</p>}
       {form.fields.filter((f) => f.isVisible).map((field, idx) => (
         <div key={idx} style={{ marginBottom: 18 }}>
-          {field.type !== 'static_text' && (
+          {field.type !== 'static_text' && field.type !== 'checkbox' && (
             <label style={{ display: 'block', fontWeight: 500, fontSize: 13, color: '#333', marginBottom: 6 }}>
               {field.label || `Camp ${idx + 1}`}
               {field.isRequired && <span style={{ color: 'var(--color-primary)', marginLeft: 3 }}>*</span>}
@@ -730,6 +730,7 @@ function FormPreview({ form }: { form: FormData }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" disabled />
               <span style={{ fontSize: 13, color: '#555' }}>{field.placeholder || field.label}</span>
+              {field.isRequired && <span style={{ color: 'var(--color-primary)', marginLeft: 3 }}>*</span>}
             </div>
           ) : (
             <input
