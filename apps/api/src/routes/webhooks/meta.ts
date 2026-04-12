@@ -138,18 +138,24 @@ async function processLead(
   let submissionId: string | undefined;
 
   try {
-    // Insert raw submission record immediately
+    // Insert raw submission record immediately; skip if this leadgenId was already processed
     const [submission] = await app.db
       .insert(leadSubmissions)
       .values({
+        leadgenId,
         source: 'meta',
         payloadRaw: rawValue as any,
         status: 'processed',
       })
+      .onConflictDoNothing({ target: leadSubmissions.leadgenId })
       .returning({ id: leadSubmissions.id });
 
-    submissionId = submission?.id;
-    if (!submissionId) throw new Error('Failed to insert lead submission');
+    if (!submission?.id) {
+      // Conflict means this lead was already processed — skip silently
+      app.log.info(`[meta-webhook] Lead ${leadgenId} already processed — skipping duplicate`);
+      return;
+    }
+    submissionId = submission.id;
 
     // Fetch lead data from Meta Graph API
     const leadData = await fetchLeadData(leadgenId, env.META_PAGE_ACCESS_TOKEN);

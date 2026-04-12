@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { contacts } from './contacts.js';
 import { deals } from './deals.js';
@@ -27,6 +28,7 @@ export const leadSubmissions = pgTable(
   'lead_submissions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    leadgenId: text('leadgen_id'),
     source: leadSubmissionSourceEnum('source').notNull(),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
     // Raw webhook/form payload
@@ -46,6 +48,7 @@ export const leadSubmissions = pgTable(
     errorMessage: text('error_message'),
   },
   (t) => ({
+    leadgenIdUniq: uniqueIndex('lead_submissions_leadgen_id_uniq').on(t.leadgenId),
     statusIdx: index('lead_submissions_status_idx').on(t.status),
     receivedAtIdx: index('lead_submissions_received_at_idx').on(t.receivedAt),
     contactIdx: index('lead_submissions_contact_idx').on(t.createdContactId),

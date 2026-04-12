@@ -1,6 +1,7 @@
 /**
  * Normalize a phone number input to E.164 format.
- * Default country: +34 (Spain).
+ * Default country: +34 (Spain) when no country prefix is provided.
+ * Accepts any valid E.164 number (international).
  * Returns null if the number cannot be normalized to a valid E.164 string.
  */
 export function normalizePhone(input: string): string | null {
@@ -24,4 +25,11 @@ export function normalizePhone(input: string): string | null {
   // E.164: + followed by 7–15 digits
   if (!/^\+[0-9]{7,15}$/.test(e164)) return null;
   return e164;
+}
+
+/**
+ * Check if a phone number with an existing + prefix is a Spanish (+34) number.
+ */
+export function isSpanishPhone(e164: string): boolean {
+  return e164.startsWith('+34');
 }
