@@ -40,6 +40,18 @@ async function apiGet(path: string) {
   return res.json();
 }
 
+function postToParent(msg: Record<string, unknown>) {
+  window.parent.postMessage(msg, '*');
+}
+
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
+  let timer: ReturnType<typeof setTimeout>;
+  return ((...args: unknown[]) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  }) as T;
+}
+
 async function apiPost(path: string, body: unknown) {
   const res = await fetch(BASE_PATH + path, {
     method: 'POST',
@@ -65,16 +77,37 @@ export default function FormEmbedPage() {
 
   useEffect(() => {
     if (!id) return;
+    postToParent({ type: 'form:status', status: 'loading', formId: id });
     apiGet(`/api/forms/${id}/embed`)
       .then((data) => {
         setForm(data);
         const initial: Record<string, string> = {};
         for (const f of data.fields ?? []) initial[f.key] = '';
         setValues(initial);
+        postToParent({ type: 'form:status', status: 'ready', formId: id });
       })
       .catch(() => setGlobalError('Formulari no disponible.'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    const sendHeight = () => {
+      postToParent({ height: document.body.scrollHeight });
+    };
+
+    sendHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const debouncedSend = debounce(sendHeight, 100);
+      const observer = new ResizeObserver(debouncedSend);
+      observer.observe(document.body);
+      return () => observer.disconnect();
+    } else {
+      const debouncedSend = debounce(sendHeight, 100);
+      window.addEventListener('resize', debouncedSend);
+      return () => window.removeEventListener('resize', debouncedSend);
+    }
+  }, []);
 
   function validate(): boolean {
     if (!form) return false;
@@ -99,8 +132,11 @@ export default function FormEmbedPage() {
     setGlobalError('');
     try {
       await apiPost(`/api/forms/${form.id}/submit`, { ...values, _hp: '' });
+      postToParent({ type: 'form:scrollTop' });
+      postToParent({ type: 'form:status', status: 'submitted', formId: form.id });
       setSubmitted(true);
     } catch (err: any) {
+      postToParent({ type: 'form:status', status: 'error', formId: form.id });
       if (err?.data?.error === 'too_many_requests') {
         setGlobalError('Massa sol·licituds. Espera un moment i torna-ho a provar.');
       } else {
