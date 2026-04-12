@@ -163,6 +163,13 @@ async function processLead(
       ...mapped.extraFields,
     };
 
+    if (leadData.ad_id) mappedFields.ad_id = leadData.ad_id;
+    if (leadData.adset_id) mappedFields.adset_id = leadData.adset_id;
+    if (leadData.campaign_id) mappedFields.campaign_id = leadData.campaign_id;
+    if (leadData.ad_name) mappedFields.ad_name = leadData.ad_name;
+    if (leadData.adset_name) mappedFields.adset_name = leadData.adset_name;
+    if (leadData.campaign_name) mappedFields.campaign_name = leadData.campaign_name;
+
     // Update submission with mapped data
     await app.db
       .update(leadSubmissions)

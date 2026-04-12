@@ -7,6 +7,12 @@ export interface MetaLeadData {
   id: string;
   created_time: string;
   field_data: MetaFieldData[];
+  ad_id?: string;
+  adset_id?: string;
+  campaign_id?: string;
+  ad_name?: string;
+  adset_name?: string;
+  campaign_name?: string;
 }
 
 export interface MappedLeadFields {
@@ -31,7 +37,7 @@ export async function fetchLeadData(
   leadgenId: string,
   accessToken: string,
 ): Promise<MetaLeadData> {
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(leadgenId)}?fields=field_data,created_time&access_token=${encodeURIComponent(accessToken)}`;
+  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(leadgenId)}?fields=field_data,created_time,ad_id,adset_id,campaign_id,ad_name,adset_name,campaign_name&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text();
