@@ -203,6 +203,24 @@ export default function FormEditorPage() {
   if (loading) return <div style={{ padding: 32, color: '#999' }}>Carregant...</div>;
   if (!form) return <div style={{ padding: 32, color: '#c0392b' }}>Formulari no trobat.</div>;
 
+  // Validation: check for unmapped contact fields
+  const mappingWarnings: string[] = [];
+  {
+    const hasEmail = form.fields.some((f) => f.type === 'email' || f.crmPropertyKey === 'email');
+    const hasPhone = form.fields.some((f) => f.type === 'phone' || f.crmPropertyKey === 'phone');
+    const hasFirstName = form.fields.some((f) => f.crmPropertyKey === 'firstName');
+
+    if (!hasEmail && !hasPhone) {
+      mappingWarnings.push('Cap camp mapejat a email ni telèfon — no es crearà cap contacte al CRM.');
+    } else {
+      if (!hasEmail) mappingWarnings.push('Cap camp mapejat a email — el contacte es crearà sense correu electrònic.');
+      if (!hasPhone) mappingWarnings.push('Cap camp mapejat a telèfon — el contacte es crearà sense telèfon.');
+    }
+    if (!hasFirstName) {
+      mappingWarnings.push('Cap camp mapejat a "Nom" (firstName) — el contacte es crearà com a "Sense nom".');
+    }
+  }
+
   const embedUrl = `${window.location.origin}/crm/forms/embed/${form.id}`;
   const jsSnippet = `<div id="ca-form-${form.id}"></div>
 <script>
@@ -296,7 +314,17 @@ export default function FormEditorPage() {
       {/* Body */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {tab === 'editor' && (
-          <div style={{ display: 'flex', height: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {mappingWarnings.length > 0 && (
+              <div style={{ padding: '10px 24px', background: '#fff8e1', borderBottom: '1px solid #ffe082', display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                {mappingWarnings.map((w, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#856404', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚠</span> {w}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
             {/* Fields list */}
             <div style={{ width: 340, borderRight: '1px solid var(--color-border)', padding: 20, overflowY: 'auto', background: '#fafafa' }}>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14, color: '#444' }}>Camps del formulari</div>
@@ -485,6 +513,7 @@ export default function FormEditorPage() {
               )}
             </div>
           </div>
+          </div>
         )}
 
         {tab === 'preview' && (
@@ -556,7 +585,16 @@ function FieldPropertiesPanel({ field, isAdmin, crmProperties, onChange }: {
       <select
         value={field.type}
         disabled={!isAdmin}
-        onChange={(e) => onChange({ type: e.target.value as FieldType })}
+        onChange={(e) => {
+          const newType = e.target.value as FieldType;
+          const changes: Partial<FormField> = { type: newType };
+          // Auto-map crmPropertyKey when switching to email/phone and no mapping is set
+          if (!field.crmPropertyKey) {
+            if (newType === 'email') changes.crmPropertyKey = 'email';
+            else if (newType === 'phone') changes.crmPropertyKey = 'phone';
+          }
+          onChange(changes);
+        }}
         style={{ ...inputStyle, width: '100%' }}
       >
         {(Object.keys(FIELD_TYPE_LABELS) as FieldType[]).map((t) => (
