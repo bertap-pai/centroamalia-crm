@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, and, inArray } from 'drizzle-orm';
 import {
   contacts,
+  contactPropertyValues,
   deals,
   dealContacts,
   dealStageEvents,
   leadSubmissions,
+  propertyDefinitions,
   stages,
 } from '@crm/db';
 import type { MetaLeadData } from './meta-lead.js';
@@ -45,7 +47,10 @@ export async function processLeadFromWebhook(
     // Fetch lead data from Meta Graph API
     const leadData = await fetchLeadData(leadgenId, env.META_PAGE_ACCESS_TOKEN);
 
-    await processLeadCore(app, leadData, submissionId, leadgenId);
+    // Extract form_id from the webhook payload
+    const formId = (rawValue as { form_id?: string })?.form_id ?? undefined;
+
+    await processLeadCore(app, leadData, submissionId, leadgenId, formId);
   } catch (err) {
     app.log.error({ err }, `[meta-lead] Failed to process lead ${leadgenId}`);
     if (submissionId) {
@@ -114,6 +119,7 @@ async function processLeadCore(
   leadData: MetaLeadData,
   submissionId: string,
   leadgenId: string,
+  formId?: string,
 ): Promise<void> {
   const mapped = mapLeadFields(leadData.field_data);
 
@@ -175,6 +181,80 @@ async function processLeadCore(
       .returning({ id: contacts.id });
     if (!newContact) throw new Error('Failed to insert contact');
     contactId = newContact.id;
+  }
+
+  // Set UTM tracking and attribution contact properties
+  const ATTR_PROPS: Array<{ first: string; last: string; value: string | undefined }> = [
+    { first: 'first_lead_source', last: 'last_lead_source', value: 'meta_lead_ads' },
+    { first: 'first_utm_source', last: 'last_utm_source', value: mapped.extraFields?.utm_source ?? 'facebook' },
+    { first: 'first_utm_medium', last: 'last_utm_medium', value: mapped.extraFields?.utm_medium ?? 'paid_social' },
+    {
+      first: 'first_utm_campaign',
+      last: 'last_utm_campaign',
+      value: mapped.extraFields?.utm_campaign ?? leadData.campaign_name ?? undefined,
+    },
+    { first: 'first_meta_form', last: 'last_meta_form', value: formId },
+  ];
+
+  // Collect all property keys we need
+  const allAttrKeys: string[] = [];
+  for (const prop of ATTR_PROPS) {
+    if (prop.value) {
+      allAttrKeys.push(prop.first, prop.last);
+    }
+  }
+
+  if (allAttrKeys.length > 0) {
+    const attrPropDefs = await app.db
+      .select({ id: propertyDefinitions.id, key: propertyDefinitions.key })
+      .from(propertyDefinitions)
+      .where(inArray(propertyDefinitions.key, allAttrKeys));
+
+    const propDefByKey = new Map(attrPropDefs.map((p) => [p.key, p.id]));
+
+    // Check which first_* properties already have values for this contact
+    const firstPropDefIds = attrPropDefs
+      .filter((p) => p.key.startsWith('first_'))
+      .map((p) => p.id);
+
+    const existingFirstValues = firstPropDefIds.length > 0
+      ? await app.db
+          .select({ propertyDefinitionId: contactPropertyValues.propertyDefinitionId })
+          .from(contactPropertyValues)
+          .where(
+            and(
+              eq(contactPropertyValues.contactId, contactId),
+              inArray(contactPropertyValues.propertyDefinitionId, firstPropDefIds),
+            ),
+          )
+      : [];
+
+    const existingFirstPropIds = new Set(existingFirstValues.map((v) => v.propertyDefinitionId));
+
+    for (const prop of ATTR_PROPS) {
+      if (!prop.value) continue;
+
+      // Always upsert last_*
+      const lastPropId = propDefByKey.get(prop.last);
+      if (lastPropId) {
+        await app.db
+          .insert(contactPropertyValues)
+          .values({ contactId, propertyDefinitionId: lastPropId, value: prop.value })
+          .onConflictDoUpdate({
+            target: [contactPropertyValues.contactId, contactPropertyValues.propertyDefinitionId],
+            set: { value: prop.value, updatedAt: new Date() },
+          });
+      }
+
+      // Only set first_* if not already set
+      const firstPropId = propDefByKey.get(prop.first);
+      if (firstPropId && !existingFirstPropIds.has(firstPropId)) {
+        await app.db
+          .insert(contactPropertyValues)
+          .values({ contactId, propertyDefinitionId: firstPropId, value: prop.value })
+          .onConflictDoNothing();
+      }
+    }
   }
 
   // Verify stage exists
