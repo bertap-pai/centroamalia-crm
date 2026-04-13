@@ -46,6 +46,16 @@ export const sseRegistry = {
     res.write(`event: ${event}\ndata: ${data}\n\n`);
   },
 
+  pushAll(event: string, data: string): void {
+    for (const [userId, res] of connections) {
+      if (res.destroyed) {
+        connections.delete(userId);
+        continue;
+      }
+      res.write(`event: ${event}\ndata: ${data}\n\n`);
+    }
+  },
+
   has(userId: string): boolean {
     const res = connections.get(userId);
     if (res && res.destroyed) {

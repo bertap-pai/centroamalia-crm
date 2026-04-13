@@ -99,6 +99,13 @@ export default function ContactsListPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Auto-refresh on SSE contact_created event
+  useEffect(() => {
+    const handler = () => { setPage(1); setRefreshKey((k) => k + 1); };
+    window.addEventListener('crm:contact_created', handler);
+    return () => window.removeEventListener('crm:contact_created', handler);
+  }, []);
+
   // Derived: prop-only keys (fixed keys excluded)
   const propColumns = allColumns.filter((k) => !CONTACT_FIXED_KEYS.has(k));
 

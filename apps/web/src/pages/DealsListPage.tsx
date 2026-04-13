@@ -160,6 +160,17 @@ export default function DealsListPage() {
   } | null>(null);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Auto-refresh on SSE deal_created event
+  useEffect(() => {
+    const handler = () => {
+      setRefreshKey((k) => k + 1);
+      if (viewMode === 'list') setPage(1);
+    };
+    window.addEventListener('crm:deal_created', handler);
+    return () => window.removeEventListener('crm:deal_created', handler);
+  }, [viewMode]);
 
   // Derived: prop-only keys (fixed keys excluded)
   const propColumns = allColumns.filter((k) => !DEAL_FIXED_KEYS.has(k));
@@ -231,7 +242,7 @@ export default function DealsListPage() {
       });
     return () => { cancelled = true; };
   }, [viewMode, debouncedSearch, includeArchived, page, selectedPipelineId, allColumns,
-      filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters, sortField, sortDir]);
+      filterStageId, filterOwnerUserId, createdFrom, createdTo, propFilters, sortField, sortDir, refreshKey]);
 
   function buildKanbanParams() {
     const params = new URLSearchParams({ pipelineId: selectedPipelineId });
@@ -263,7 +274,7 @@ export default function DealsListPage() {
       })
       .catch(() => setKanbanLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, selectedPipelineId, includeArchived, filterOwnerUserId, createdFrom, createdTo, propFilters]);
+  }, [viewMode, selectedPipelineId, includeArchived, filterOwnerUserId, createdFrom, createdTo, propFilters, refreshKey]);
 
   // Drag & drop handlers
   function handleDragStart(dealId: string) {

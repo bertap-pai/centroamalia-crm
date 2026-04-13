@@ -25,6 +25,7 @@ import {
   users,
 } from '@crm/db';
 import { normalizePhone } from '../lib/phone.js';
+import { sseRegistry } from '../lib/sse-registry.js';
 
 export default async function contactsRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------ list
@@ -215,6 +216,7 @@ export default async function contactsRoutes(app: FastifyInstance) {
       });
 
       (req as any).__responseBody = contact;
+      sseRegistry.pushAll('contact_created', JSON.stringify({ id: contact.id }));
       return reply.code(201).send(contact);
     },
   );

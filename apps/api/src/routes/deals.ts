@@ -25,6 +25,7 @@ import {
   contacts,
   users,
 } from '@crm/db';
+import { sseRegistry } from '../lib/sse-registry.js';
 
 export default async function dealsRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------ list
@@ -408,6 +409,7 @@ export default async function dealsRoutes(app: FastifyInstance) {
       });
 
       (req as any).__responseBody = deal;
+      sseRegistry.pushAll('deal_created', JSON.stringify({ id: deal.id }));
       return reply.code(201).send(deal);
     },
   );

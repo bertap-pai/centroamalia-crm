@@ -108,6 +108,14 @@ export function useNotificationStream(): {
       }
     });
 
+    es.addEventListener('contact_created', () => {
+      window.dispatchEvent(new CustomEvent('crm:contact_created'));
+    });
+
+    es.addEventListener('deal_created', () => {
+      window.dispatchEvent(new CustomEvent('crm:deal_created'));
+    });
+
     es.onopen = () => {
       retryCount.current = 0;
     };
