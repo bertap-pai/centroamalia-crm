@@ -20,6 +20,7 @@ export const env = {
   META_VERIFY_TOKEN: process.env['META_VERIFY_TOKEN'] ?? '',
   META_APP_SECRET: process.env['META_APP_SECRET'] ?? '',
   META_PAGE_ACCESS_TOKEN: process.env['META_PAGE_ACCESS_TOKEN'] ?? '',
+  META_PAGE_ID: process.env['META_PAGE_ID'] ?? '',
   META_DEFAULT_PIPELINE_ID: process.env['META_DEFAULT_PIPELINE_ID'] ?? '',
   META_DEFAULT_STAGE_ID: process.env['META_DEFAULT_STAGE_ID'] ?? '',
   // TikTok Lead Ads webhook

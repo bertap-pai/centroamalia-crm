@@ -25,6 +25,7 @@ import notificationsRoutes from './routes/notifications.js';
 import workflowsRoutes from './routes/workflows.js';
 import workflowEmitterPlugin from './plugins/workflow-emitter.js';
 import workflowSchedulerPlugin from './services/workflow-scheduler.js';
+import metaLeadPollerPlugin from './services/meta-lead-poller.js';
 import { initWorkflowEngine } from './services/workflow-engine.js';
 import { startHeartbeatMonitor } from './lib/heartbeat-monitor.js';
 import { notifications } from '@crm/db';
@@ -79,6 +80,9 @@ async function start() {
 
   // Register workflow scheduler (node-cron for wait step resumption)
   await app.register(workflowSchedulerPlugin);
+
+  // Register Meta lead poller (60-min safeguard against missed webhooks)
+  await app.register(metaLeadPollerPlugin);
 
   // Health check — unauthenticated, used by load balancers and uptime monitors
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
