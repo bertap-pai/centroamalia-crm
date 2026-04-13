@@ -85,7 +85,7 @@ export default function ContactDetailPage() {
     Promise.all([
       api.get(`/api/contacts/${id}`),
       api.get('/api/properties?scope=contact'),
-      api.get('/api/contact-layout'),
+      api.get('/api/contact-layout').catch(() => ({ groupOrder: [], pinnedPropertyKeys: [] })),
     ])
       .then(([c, defs, layout]) => {
         setContact(c);
