@@ -473,6 +473,39 @@ export default async function formsRoutes(app: FastifyInstance) {
       }
     }
 
+    // Sync page URL attribution to contact properties (first_page_url / last_page_url)
+    const sourceUrl = req.headers['referer']?.toString() ?? null;
+    if (createdContactId && sourceUrl) {
+      const pageUrlKeys = ['first_page_url', 'last_page_url'];
+      const pageUrlPropDefs = await app.db
+        .select({ id: propertyDefinitions.id, key: propertyDefinitions.key })
+        .from(propertyDefinitions)
+        .where(inArray(propertyDefinitions.key, pageUrlKeys));
+
+      const pageUrlPropDefByKey = new Map(pageUrlPropDefs.map((p) => [p.key, p.id]));
+
+      // Always upsert last_page_url
+      const lastPageUrlId = pageUrlPropDefByKey.get('last_page_url');
+      if (lastPageUrlId) {
+        await app.db
+          .insert(contactPropertyValues)
+          .values({ contactId: createdContactId, propertyDefinitionId: lastPageUrlId, value: sourceUrl })
+          .onConflictDoUpdate({
+            target: [contactPropertyValues.contactId, contactPropertyValues.propertyDefinitionId],
+            set: { value: sourceUrl, updatedAt: new Date() },
+          });
+      }
+
+      // Only set first_page_url if not already set
+      const firstPageUrlId = pageUrlPropDefByKey.get('first_page_url');
+      if (firstPageUrlId) {
+        await app.db
+          .insert(contactPropertyValues)
+          .values({ contactId: createdContactId, propertyDefinitionId: firstPageUrlId, value: sourceUrl })
+          .onConflictDoNothing();
+      }
+    }
+
     // Save submission
     const [submission] = await app.db
       .insert(formSubmissions)
@@ -481,7 +514,7 @@ export default async function formsRoutes(app: FastifyInstance) {
         data: formData,
         createdContactId,
         trackingParams: Object.keys(trackingParams).length > 0 ? trackingParams : null,
-        sourceUrl: req.headers['referer']?.toString() ?? null,
+        sourceUrl,
         ipHash,
       })
       .returning();
