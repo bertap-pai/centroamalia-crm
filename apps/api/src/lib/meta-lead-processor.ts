@@ -199,7 +199,11 @@ async function processLeadCore(
     { first: 'first_meta_adset_id', last: 'last_meta_adset_id', value: leadData.adset_id },
     { first: 'first_meta_adset_name', last: 'last_meta_adset_name', value: leadData.adset_name },
     { first: 'first_meta_campaign_id', last: 'last_meta_campaign_id', value: leadData.campaign_id },
-    { first: 'first_page_url', last: 'last_page_url', value: mapped.extraFields?.page_url ?? undefined },
+    {
+      first: 'first_page_url',
+      last: 'last_page_url',
+      value: mapped.extraFields?.page_url ?? mapped.extraFields?.url ?? mapped.extraFields?.landing_page_url,
+    },
   ];
 
   // Collect all property keys we need
