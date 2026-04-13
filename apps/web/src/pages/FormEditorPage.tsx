@@ -231,8 +231,9 @@ export default function FormEditorPage() {
   var pageParams = new URLSearchParams(window.location.search);
   var fwd = new URLSearchParams();
   TRACKING_KEYS.forEach(function(k) { var v = pageParams.get(k); if (v) fwd.set(k, v); });
+  fwd.set("_parentUrl", window.location.href);
   var base = "${embedUrl}";
-  var src = fwd.toString() ? base + "?" + fwd.toString() : base;
+  var src = base + "?" + fwd.toString();
   var iframe = document.createElement("iframe");
   iframe.src = src;
   iframe.width = "100%";

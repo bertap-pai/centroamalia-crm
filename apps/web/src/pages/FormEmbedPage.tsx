@@ -137,7 +137,8 @@ export default function FormEmbedPage() {
       const trackingParams = Object.fromEntries(
         TRACKING_KEYS.filter(k => searchParams.get(k)).map(k => [k, searchParams.get(k)!])
       );
-      await apiPost(`/api/forms/${form.id}/submit`, { ...values, _hp: '', _tracking: trackingParams });
+      const parentUrl = searchParams.get('_parentUrl') || undefined;
+      await apiPost(`/api/forms/${form.id}/submit`, { ...values, _hp: '', _tracking: trackingParams, ...(parentUrl ? { _parentUrl: parentUrl } : {}) });
       postToParent({ type: 'form:scrollTop' });
       postToParent({ type: 'form:status', status: 'submitted', formId: form.id });
       setSubmitted(true);

@@ -78,8 +78,11 @@
     }
   }
 
+  // Always forward the parent page URL so the embed knows the real landing page
+  fwd.push(encodeURIComponent('_parentUrl') + '=' + encodeURIComponent(window.location.href));
+
   var embedPath = '/forms/embed/' + encodeURIComponent(formId);
-  var iframeSrc = baseUrl + embedPath + (fwd.length ? '?' + fwd.join('&') : '');
+  var iframeSrc = baseUrl + embedPath + '?' + fwd.join('&');
 
   // --- Create container and iframe ---------------------------------------
   var container = document.createElement('div');

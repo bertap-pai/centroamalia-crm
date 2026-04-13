@@ -282,6 +282,10 @@ export default async function formsRoutes(app: FastifyInstance) {
     delete body['_tracking'];
     delete body['_hp'];
 
+    // Extract parent page URL (forwarded by the JS embed snippet)
+    const parentUrl = typeof body['_parentUrl'] === 'string' ? body['_parentUrl'] : null;
+    delete body['_parentUrl'];
+
     // From here on, body contains only form field values
     const formData = body as Record<string, string>;
 
@@ -474,7 +478,8 @@ export default async function formsRoutes(app: FastifyInstance) {
     }
 
     // Sync page URL attribution to contact properties (first_page_url / last_page_url)
-    const sourceUrl = req.headers['referer']?.toString() ?? null;
+    // Prefer parentUrl (forwarded by JS embed from the actual landing page) over Referer (which is the iframe URL)
+    const sourceUrl = parentUrl || req.headers['referer']?.toString() || null;
     if (createdContactId && sourceUrl) {
       const pageUrlKeys = ['first_page_url', 'last_page_url'];
       const pageUrlPropDefs = await app.db
