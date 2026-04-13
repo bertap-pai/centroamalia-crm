@@ -403,6 +403,74 @@ export default async function formsRoutes(app: FastifyInstance) {
           }
         }
       }
+
+      // Sync UTM tracking params and attribution to contact properties
+      if (createdContactId && Object.keys(trackingParams).length > 0) {
+        const UTM_TO_PROPS: Record<string, { first: string; last: string }> = {
+          utm_source: { first: 'first_utm_source', last: 'last_utm_source' },
+          utm_campaign: { first: 'first_utm_campaign', last: 'last_utm_campaign' },
+          utm_medium: { first: 'first_utm_medium', last: 'last_utm_medium' },
+        };
+
+        const allAttrKeys: string[] = [];
+        for (const mapping of Object.values(UTM_TO_PROPS)) {
+          allAttrKeys.push(mapping.first, mapping.last);
+        }
+
+        if (allAttrKeys.length > 0) {
+          const attrPropDefs = await app.db
+            .select({ id: propertyDefinitions.id, key: propertyDefinitions.key })
+            .from(propertyDefinitions)
+            .where(inArray(propertyDefinitions.key, allAttrKeys));
+
+          const propDefByKey = new Map(attrPropDefs.map((p) => [p.key, p.id]));
+
+          // Check which first_* properties already have values
+          const firstPropDefIds = attrPropDefs
+            .filter((p) => p.key.startsWith('first_'))
+            .map((p) => p.id);
+
+          const existingFirstValues = firstPropDefIds.length > 0
+            ? await app.db
+                .select({ propertyDefinitionId: contactPropertyValues.propertyDefinitionId })
+                .from(contactPropertyValues)
+                .where(
+                  and(
+                    eq(contactPropertyValues.contactId, createdContactId!),
+                    inArray(contactPropertyValues.propertyDefinitionId, firstPropDefIds),
+                  ),
+                )
+            : [];
+
+          const existingFirstPropIds = new Set(existingFirstValues.map((v) => v.propertyDefinitionId));
+
+          for (const [paramKey, mapping] of Object.entries(UTM_TO_PROPS)) {
+            const val = trackingParams[paramKey];
+            if (!val) continue;
+
+            // Always update last_* property
+            const lastPropId = propDefByKey.get(mapping.last);
+            if (lastPropId) {
+              await app.db
+                .insert(contactPropertyValues)
+                .values({ contactId: createdContactId!, propertyDefinitionId: lastPropId, value: val })
+                .onConflictDoUpdate({
+                  target: [contactPropertyValues.contactId, contactPropertyValues.propertyDefinitionId],
+                  set: { value: val, updatedAt: new Date() },
+                });
+            }
+
+            // Only set first_* if not already set
+            const firstPropId = propDefByKey.get(mapping.first);
+            if (firstPropId && !existingFirstPropIds.has(firstPropId)) {
+              await app.db
+                .insert(contactPropertyValues)
+                .values({ contactId: createdContactId!, propertyDefinitionId: firstPropId, value: val })
+                .onConflictDoNothing();
+            }
+          }
+        }
+      }
     }
 
     // Save submission
