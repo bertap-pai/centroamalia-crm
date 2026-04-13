@@ -194,6 +194,11 @@ async function processLeadCore(
       value: mapped.extraFields?.utm_campaign ?? leadData.campaign_name ?? undefined,
     },
     { first: 'first_meta_form', last: 'last_meta_form', value: formId },
+    { first: 'first_meta_ad_id', last: 'last_meta_ad_id', value: leadData.ad_id },
+    { first: 'first_meta_ad_name', last: 'last_meta_ad_name', value: leadData.ad_name },
+    { first: 'first_meta_adset_id', last: 'last_meta_adset_id', value: leadData.adset_id },
+    { first: 'first_meta_adset_name', last: 'last_meta_adset_name', value: leadData.adset_name },
+    { first: 'first_meta_campaign_id', last: 'last_meta_campaign_id', value: leadData.campaign_id },
   ];
 
   // Collect all property keys we need
