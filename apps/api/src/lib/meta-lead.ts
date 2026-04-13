@@ -83,7 +83,8 @@ export function mapLeadFields(fieldData: MetaFieldData[]): MappedLeadFields {
   };
 
   for (const field of fieldData) {
-    const value = field.values[0] ?? '';
+    if (!field || !field.name) continue;
+    const value = field.values?.[0] ?? '';
     const normalized = field.name.toLowerCase().replace(/\s+/g, '_');
 
     if (normalized === 'full_name') {
