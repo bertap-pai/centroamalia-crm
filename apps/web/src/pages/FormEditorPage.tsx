@@ -222,6 +222,8 @@ export default function FormEditorPage() {
   }
 
   const embedUrl = `${window.location.origin}/crm/forms/embed/${form.id}`;
+  const loaderUrl = `${window.location.origin}/crm/forms/loader.js`;
+  const loaderSnippet = `<script src="${loaderUrl}" data-form-id="${form.id}"></script>`;
   const jsSnippet = `<div id="ca-form-${form.id}"></div>
 <script>
 (function() {
@@ -524,16 +526,35 @@ export default function FormEditorPage() {
 
         {tab === 'embed' && (
           <div style={{ padding: 32, maxWidth: 660 }}>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16 }}>Codi d'incrustació (iframe)</div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Codi d'incrustació (recomanat)</div>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+              Enganxa aquesta línia al teu lloc web. El formulari es carregarà automàticament i els paràmetres UTM es reenviaran.
+            </div>
             <div style={{ background: '#1c1c1c', color: '#e6db74', fontFamily: 'monospace', fontSize: 13, padding: 16, borderRadius: 8, wordBreak: 'break-all', marginBottom: 16 }}>
-              {jsSnippet}
+              {loaderSnippet}
             </div>
             <button
-              onClick={() => navigator.clipboard.writeText(jsSnippet)}
-              style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 24 }}
+              onClick={() => navigator.clipboard.writeText(loaderSnippet)}
+              style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 32 }}
             >
               Copiar codi
             </button>
+
+            <details style={{ marginBottom: 24 }}>
+              <summary style={{ fontWeight: 600, fontSize: 14, cursor: 'pointer', color: '#666' }}>Codi inline (avançat)</summary>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ background: '#1c1c1c', color: '#e6db74', fontFamily: 'monospace', fontSize: 13, padding: 16, borderRadius: 8, wordBreak: 'break-all', marginBottom: 16 }}>
+                  {jsSnippet}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(jsSnippet)}
+                  style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Copiar codi inline
+                </button>
+              </div>
+            </details>
+
             <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>URL directa:</div>
             <a href={embedUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--color-primary)' }}>{embedUrl}</a>
             {form.status !== 'active' && (
