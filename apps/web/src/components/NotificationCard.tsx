@@ -7,9 +7,10 @@ interface Props {
   notification: Notification;
   onDismiss: (id: string) => void;
   onRead: (id: string) => void;
+  onClose: () => void;
 }
 
-export default function NotificationCard({ notification, onDismiss, onRead }: Props) {
+export default function NotificationCard({ notification, onDismiss, onRead, onClose }: Props) {
   const navigate = useNavigate();
   const isUnread = !notification.read_at;
   const icon = getNotificationIcon(notification.type, notification.priority);
@@ -30,6 +31,7 @@ export default function NotificationCard({ notification, onDismiss, onRead }: Pr
         // Non-fatal
       }
     }
+    onClose();
     navigate(deepLink);
   }
 

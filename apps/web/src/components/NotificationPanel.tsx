@@ -54,13 +54,14 @@ export default function NotificationPanel({ open, onClose, notifications, onRefe
     };
   }, [open, onClose]);
 
-  // Reset dismissed/read state when panel opens
+  // Reset dismissed/read state when panel opens and refetch fresh data
   useEffect(() => {
     if (open) {
       setDismissed(new Set());
       setReadIds(new Set());
+      onRefetch();
     }
-  }, [open]);
+  }, [open, onRefetch]);
 
   const handleDismiss = useCallback((id: string) => {
     setDismissed((prev) => new Set(prev).add(id));
@@ -188,6 +189,7 @@ export default function NotificationPanel({ open, onClose, notifications, onRefe
               notification={n}
               onDismiss={handleDismiss}
               onRead={handleRead}
+              onClose={onClose}
             />
           ))
         )}
