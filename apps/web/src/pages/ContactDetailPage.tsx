@@ -47,6 +47,13 @@ interface PropertyDef {
 
 const CORE_KEYS = ['first_name', 'last_name', 'email', 'phone_e164', 'servei_interes'];
 
+const CORE_FIELD_MAP: Record<string, string> = {
+  first_name: 'firstName',
+  last_name: 'lastName',
+  email: 'email',
+  phone_e164: 'phone',
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ContactDetailPage() {
@@ -59,8 +66,18 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [archiving, setArchiving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, string>>({});
+
+  // Inline edit state (Option A)
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editingVal, setEditingVal] = useState<string>('');
+
+  // Layout config state (Options B + C)
+  const [savedGroupOrder, setSavedGroupOrder] = useState<string[]>([]);
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>([]);
+
+  // Drag state (Option B)
+  const [dragGroupIdx, setDragGroupIdx] = useState<number | null>(null);
+  const [dragOverGroupIdx, setDragOverGroupIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -68,10 +85,13 @@ export default function ContactDetailPage() {
     Promise.all([
       api.get(`/api/contacts/${id}`),
       api.get('/api/properties?scope=contact'),
+      api.get('/api/contact-layout'),
     ])
-      .then(([c, defs]) => {
+      .then(([c, defs, layout]) => {
         setContact(c);
         setPropDefs(defs);
+        setSavedGroupOrder(layout.groupOrder ?? []);
+        setPinnedKeys(layout.pinnedPropertyKeys ?? []);
         setLoading(false);
       })
       .catch((err: any) => {
@@ -81,54 +101,59 @@ export default function ContactDetailPage() {
       });
   }, [id]);
 
-  async function handleArchive() {
-    if (!contact || archiving) return;
-    setArchiving(true);
-    try {
-      const updated = await api.post(contact.archivedAt ? `/api/contacts/${id}/restore` : `/api/contacts/${id}/archive`);
-      setContact({ ...contact, archivedAt: updated.archivedAt });
-    } finally {
-      setArchiving(false);
+  // ─── Inline edit helpers (Option A) ───────────────────────────────────────
+
+  function getCoreValue(key: string): string {
+    if (!contact) return '';
+    switch (key) {
+      case 'first_name': return contact.firstName ?? '';
+      case 'last_name': return contact.lastName ?? '';
+      case 'email': return contact.email ?? '';
+      case 'phone_e164': return contact.phoneE164 ?? '';
+      default: return contact.properties[key] ?? '';
     }
   }
 
-  function startEdit() {
+  async function saveField(key: string, value: string) {
     if (!contact) return;
-    setEditForm({
-      firstName: contact.firstName ?? '',
-      lastName: contact.lastName ?? '',
-      email: contact.email ?? '',
-      phone: contact.phoneE164 ?? '',
-      ...contact.properties,
-    });
-    setEditing(true);
-  }
+    const coreApiKey = CORE_FIELD_MAP[key];
+    const body = coreApiKey
+      ? { [coreApiKey]: value || undefined }
+      : { properties: { [key]: value } };
 
-  async function saveEdit() {
-    if (!contact) return;
-    const { firstName, lastName, email, phone, ...properties } = editForm;
     try {
-      const updated = await api.patch(`/api/contacts/${id}`, {
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        email: email || undefined,
-        phone: phone || undefined,
-        properties,
-      });
-      setContact({ ...contact, ...updated, properties: { ...contact.properties, ...properties } });
-      setEditing(false);
+      const updated = await api.patch(`/api/contacts/${id}`, body);
+      setContact({ ...contact, ...updated, properties: { ...contact.properties, ...updated.properties } });
     } catch (err: any) {
       if (err.status === 409) alert('Aquest telèfon ja existeix en un altre contacte.');
-      else if (err.status === 400) alert('Telèfon no vàlid.');
+      else if (err.status === 400) alert('Valor no vàlid.');
       else alert('Error en guardar. Torna-ho a intentar.');
     }
+    setEditingKey(null);
   }
+
+  function startInlineEdit(key: string) {
+    setEditingKey(key);
+    setEditingVal(getCoreValue(key));
+  }
+
+  // ─── Pin toggle (Option C) ────────────────────────────────────────────────
+
+  function togglePin(key: string) {
+    const next = pinnedKeys.includes(key)
+      ? pinnedKeys.filter((k) => k !== key)
+      : [...pinnedKeys, key].slice(0, 8);
+    setPinnedKeys(next);
+    api.patch('/api/contact-layout', { pinnedPropertyKeys: next });
+  }
+
+  // ─── Display helpers ──────────────────────────────────────────────────────
 
   const defFor = (key: string) => propDefs.find((d) => d.key === key);
 
   const displayVal = (key: string, val: string) => {
     const def = defFor(key);
-    if (!def || !val) return val || '—';
+    if (!def || !val) return val || '';
     if ((def.type === 'select' || def.type === 'multiselect') && def.options) {
       return def.options.find((o) => o.key === val)?.label ?? val;
     }
@@ -156,39 +181,55 @@ export default function ContactDetailPage() {
 
   // Build display groups from property definitions
   const displayGroups: { label: string; keys: string[] }[] = [];
-  const groupOrder: string[] = [];
+  const defGroupOrder: string[] = [];
   const groupMap = new Map<string, string[]>();
 
   for (const def of propDefs) {
     if (!def.group || CORE_KEYS.includes(def.key)) continue;
     if (!groupMap.has(def.group)) {
       groupMap.set(def.group, []);
-      groupOrder.push(def.group);
+      defGroupOrder.push(def.group);
     }
     groupMap.get(def.group)!.push(def.key);
   }
 
-  for (const label of groupOrder) {
+  for (const label of defGroupOrder) {
     displayGroups.push({ label, keys: groupMap.get(label)! });
   }
+
+  // Sort groups by saved order (Option B)
+  const sortedGroups = savedGroupOrder.length > 0
+    ? [
+        ...savedGroupOrder
+          .map((label) => displayGroups.find((g) => g.label === label))
+          .filter(Boolean) as typeof displayGroups,
+        ...displayGroups.filter((g) => !savedGroupOrder.includes(g.label)),
+      ]
+    : displayGroups;
 
   const allGroupKeys = displayGroups.flatMap((g) => g.keys);
 
   // Other properties not in any group or core
-  // When editing, include all propDefs for this scope even if they have no value yet
-  const otherKeysBase = Object.keys(contact.properties).filter(
+  const otherKeys = Object.keys(contact.properties).filter(
     (k) => !CORE_KEYS.includes(k) && !allGroupKeys.includes(k),
   );
-  const otherKeys = editing
-    ? [
-        ...new Set([
-          ...otherKeysBase,
-          ...propDefs
-            .filter((d) => !CORE_KEYS.includes(d.key) && !allGroupKeys.includes(d.key))
-            .map((d) => d.key),
-        ]),
-      ]
-    : otherKeysBase;
+
+  // All non-core property keys for pin eligibility
+  const allPropertyKeys = [...allGroupKeys, ...otherKeys];
+
+  // ─── Drag handlers (Option B) ─────────────────────────────────────────────
+
+  function handleDragEnd() {
+    if (dragGroupIdx !== null && dragOverGroupIdx !== null && dragGroupIdx !== dragOverGroupIdx) {
+      const next = sortedGroups.map((g) => g.label);
+      const removed = next.splice(dragGroupIdx, 1);
+      next.splice(dragOverGroupIdx, 0, removed[0]!);
+      setSavedGroupOrder(next);
+      api.patch('/api/contact-layout', { groupOrder: next });
+    }
+    setDragGroupIdx(null);
+    setDragOverGroupIdx(null);
+  }
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 24px' }}>
@@ -234,65 +275,121 @@ export default function ContactDetailPage() {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              {contact.phoneE164 && <span style={{ marginRight: 16 }}>📞 {contact.phoneE164}</span>}
-              {contact.email && <span>✉ {contact.email}</span>}
+            {/* Core fields — inline editable */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px', marginTop: 12 }}>
+              {CORE_KEYS.map((key) => {
+                const def = defFor(key);
+                const label = def?.label ?? key.replace(/_/g, ' ');
+                const val = getCoreValue(key);
+                return (
+                  <div key={key}>
+                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      {label}
+                    </div>
+                    <InlineValue
+                      propKey={key}
+                      def={def ?? null}
+                      value={val}
+                      displayValue={key === 'phone_e164' ? val : displayVal(key, val)}
+                      editingKey={editingKey}
+                      editingVal={editingVal}
+                      onStartEdit={startInlineEdit}
+                      onChangeVal={setEditingVal}
+                      onSave={saveField}
+                      onCancel={() => setEditingKey(null)}
+                    />
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
               Creat el {fmtDate(contact.createdAt)}
             </div>
           </div>
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            {!editing ? (
-              <>
-                <button onClick={startEdit} style={outlineBtn}>
-                  Editar
-                </button>
-                <button
-                  onClick={handleArchive}
-                  disabled={archiving}
-                  style={{ ...outlineBtn, color: contact.archivedAt ? '#27ae60' : '#e74c3c', borderColor: contact.archivedAt ? '#27ae60' : '#e74c3c' }}
-                >
-                  {archiving ? '...' : contact.archivedAt ? 'Restaurar' : 'Arxivar'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={saveEdit} style={primaryBtn}>Guardar</button>
-                <button onClick={() => setEditing(false)} style={outlineBtn}>Cancel·lar</button>
-              </>
-            )}
+            <button
+              onClick={() => {
+                if (!contact || archiving) return;
+                setArchiving(true);
+                api.post(contact.archivedAt ? `/api/contacts/${id}/restore` : `/api/contacts/${id}/archive`)
+                  .then((updated: any) => setContact({ ...contact, archivedAt: updated.archivedAt }))
+                  .finally(() => setArchiving(false));
+              }}
+              disabled={archiving}
+              style={{ ...outlineBtn, color: contact.archivedAt ? '#27ae60' : '#e74c3c', borderColor: contact.archivedAt ? '#27ae60' : '#e74c3c' }}
+            >
+              {archiving ? '...' : contact.archivedAt ? 'Restaurar' : 'Arxivar'}
+            </button>
           </div>
         </div>
-
-        {/* Edit form — base fields */}
-        {editing && (
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--color-border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <EditField label="Nom" value={editForm['firstName'] ?? ''} onChange={(v) => setEditForm({ ...editForm, firstName: v })} />
-            <EditField label="Cognoms" value={editForm['lastName'] ?? ''} onChange={(v) => setEditForm({ ...editForm, lastName: v })} />
-            <EditField label="Telèfon" value={editForm['phone'] ?? ''} onChange={(v) => setEditForm({ ...editForm, phone: v })} />
-            <EditField label="Email" value={editForm['email'] ?? ''} onChange={(v) => setEditForm({ ...editForm, email: v })} />
-            <EditField label="Servei interès" value={editForm['servei_interes'] ?? ''} onChange={(v) => setEditForm({ ...editForm, servei_interes: v })} />
-          </div>
-        )}
       </div>
 
-      {/* Properties card */}
-      {displayGroups.map((group) => {
+      {/* Destacats card (Option C) */}
+      {pinnedKeys.length > 0 && (
+        <div
+          style={{
+            background: '#fffbeb', borderRadius: 10, padding: '20px 24px',
+            border: '1px solid #fde68a', marginBottom: 16,
+          }}
+        >
+          <h3 style={{ margin: '0 0 14px', fontSize: 12, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            ★ Destacats
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+            {pinnedKeys.map((key) => {
+              const def = defFor(key);
+              if (!def) return null;
+              const val = getCoreValue(key);
+              return (
+                <div key={key}>
+                  <div style={{ fontSize: 11, color: '#92400e', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    {def.label}
+                  </div>
+                  <InlineValue
+                    propKey={key}
+                    def={def}
+                    value={val}
+                    displayValue={displayVal(key, val)}
+                    editingKey={editingKey}
+                    editingVal={editingVal}
+                    onStartEdit={startInlineEdit}
+                    onChangeVal={setEditingVal}
+                    onSave={saveField}
+                    onCancel={() => setEditingKey(null)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Group cards — draggable (Option B) */}
+      {sortedGroups.map((group, i) => {
         const keys = group.keys.filter((k) => defFor(k) !== undefined);
         if (keys.length === 0) return null;
+        const isDragOver = dragOverGroupIdx === i && dragGroupIdx !== i;
         return (
           <div
             key={group.label || '__ungrouped__'}
+            draggable
+            onDragStart={() => setDragGroupIdx(i)}
+            onDragOver={(e) => { e.preventDefault(); setDragOverGroupIdx(i); }}
+            onDragEnd={handleDragEnd}
             style={{
               background: '#fff', borderRadius: 10, padding: '20px 24px',
-              border: '1px solid var(--color-border)', marginBottom: 16,
+              border: isDragOver ? '2px solid #93c5fd' : '1px solid var(--color-border)',
+              marginBottom: 16,
+              cursor: 'grab',
+              opacity: dragGroupIdx === i ? 0.5 : 1,
+              transition: 'border-color 0.15s, opacity 0.15s',
             }}
           >
             {group.label && (
-              <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555' }}>
+              <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#ccc', fontSize: 16, cursor: 'grab' }} title="Arrossega per reordenar">≡</span>
                 {group.label}
               </h3>
             )}
@@ -302,33 +399,21 @@ export default function ContactDetailPage() {
                 if (!def) return null;
                 const val = contact.properties[key] ?? '';
                 return (
-                  <div key={key}>
-                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                      {def.label}
-                      {def.isSensitive && <span style={{ marginLeft: 4, color: '#e74c3c' }}>🔒</span>}
-                    </div>
-                    {editing && (def.type === 'text' || def.type === 'textarea' || def.type === 'datetime' || def.type === 'date' || def.type === 'number') ? (
-                      <EditField
-                        label=""
-                        value={editForm[key] ?? ''}
-                        onChange={(v) => setEditForm({ ...editForm, [key]: v })}
-                        multiline={def.type === 'textarea'}
-                      />
-                    ) : editing && (def.type === 'select') && def.options ? (
-                      <select
-                        value={editForm[key] ?? ''}
-                        onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                        style={{ ...inputStyle, width: '100%' }}
-                      >
-                        <option value="">— Selecciona —</option>
-                        {def.options.map((o) => (
-                          <option key={o.key} value={o.key}>{o.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div style={{ fontSize: 13 }}>{displayVal(key, val) || '—'}</div>
-                    )}
-                  </div>
+                  <PropertyRow
+                    key={key}
+                    propKey={key}
+                    def={def}
+                    value={val}
+                    editingKey={editingKey}
+                    editingVal={editingVal}
+                    onStartEdit={startInlineEdit}
+                    onChangeVal={setEditingVal}
+                    onSave={saveField}
+                    onCancel={() => setEditingKey(null)}
+                    isPinned={pinnedKeys.includes(key)}
+                    onTogglePin={() => togglePin(key)}
+                    displayVal={displayVal}
+                  />
                 );
               })}
             </div>
@@ -350,33 +435,21 @@ export default function ContactDetailPage() {
               const def = defFor(key);
               const val = contact.properties[key] ?? '';
               return (
-                <div key={key}>
-                  <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                    {def?.label ?? key}
-                    {def?.isSensitive && <span style={{ marginLeft: 4, color: '#e74c3c' }}>🔒</span>}
-                  </div>
-                  {editing && def && (def.type === 'text' || def.type === 'textarea' || def.type === 'datetime' || def.type === 'date' || def.type === 'number') ? (
-                    <EditField
-                      label=""
-                      value={editForm[key] ?? ''}
-                      onChange={(v) => setEditForm({ ...editForm, [key]: v })}
-                      multiline={def.type === 'textarea'}
-                    />
-                  ) : editing && def?.type === 'select' && def.options ? (
-                    <select
-                      value={editForm[key] ?? ''}
-                      onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                      style={{ ...inputStyle, width: '100%' }}
-                    >
-                      <option value="">— Selecciona —</option>
-                      {def.options.map((o) => (
-                        <option key={o.key} value={o.key}>{o.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div style={{ fontSize: 13 }}>{displayVal(key, val) || '—'}</div>
-                  )}
-                </div>
+                <PropertyRow
+                  key={key}
+                  propKey={key}
+                  def={def ?? null}
+                  value={val}
+                  editingKey={editingKey}
+                  editingVal={editingVal}
+                  onStartEdit={startInlineEdit}
+                  onChangeVal={setEditingVal}
+                  onSave={saveField}
+                  onCancel={() => setEditingKey(null)}
+                  isPinned={pinnedKeys.includes(key)}
+                  onTogglePin={() => togglePin(key)}
+                  displayVal={displayVal}
+                />
               );
             })}
           </div>
@@ -448,6 +521,161 @@ export default function ContactDetailPage() {
   );
 }
 
+// ─── InlineValue — click-to-edit for a single value (Option A) ─────────────
+
+function InlineValue({
+  propKey,
+  def,
+  value,
+  displayValue,
+  editingKey,
+  editingVal,
+  onStartEdit,
+  onChangeVal,
+  onSave,
+  onCancel,
+}: {
+  propKey: string;
+  def: PropertyDef | null;
+  value: string;
+  displayValue: string;
+  editingKey: string | null;
+  editingVal: string;
+  onStartEdit: (key: string) => void;
+  onChangeVal: (v: string) => void;
+  onSave: (key: string, value: string) => void;
+  onCancel: () => void;
+}) {
+  if (editingKey === propKey) {
+    if (def?.type === 'select' && def.options) {
+      return (
+        <select
+          value={editingVal}
+          onChange={(e) => { onChangeVal(e.target.value); onSave(propKey, e.target.value); }}
+          onBlur={() => onCancel()}
+          autoFocus
+          style={{ ...inputStyle, width: '100%' }}
+        >
+          <option value="">— Selecciona —</option>
+          {def.options.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+      );
+    }
+    return def?.type === 'textarea' ? (
+      <textarea
+        value={editingVal}
+        onChange={(e) => onChangeVal(e.target.value)}
+        onBlur={() => onSave(propKey, editingVal)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel();
+        }}
+        rows={3}
+        autoFocus
+        style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
+      />
+    ) : (
+      <input
+        type="text"
+        value={editingVal}
+        onChange={(e) => onChangeVal(e.target.value)}
+        onBlur={() => onSave(propKey, editingVal)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSave(propKey, editingVal);
+          if (e.key === 'Escape') onCancel();
+        }}
+        autoFocus
+        style={{ ...inputStyle, width: '100%' }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => onStartEdit(propKey)}
+      title="Clic per editar"
+      style={{
+        cursor: 'pointer', display: 'block', minHeight: '1.5rem',
+        padding: '2px 4px', margin: '-2px -4px', borderRadius: 4,
+        fontSize: 13, transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      {displayValue || <span style={{ color: '#ccc', fontStyle: 'italic', fontSize: 12 }}>—</span>}
+    </span>
+  );
+}
+
+// ─── PropertyRow — label + star + inline value ─────────────────────────────
+
+function PropertyRow({
+  propKey,
+  def,
+  value,
+  editingKey,
+  editingVal,
+  onStartEdit,
+  onChangeVal,
+  onSave,
+  onCancel,
+  isPinned,
+  onTogglePin,
+  displayVal,
+}: {
+  propKey: string;
+  def: PropertyDef | null;
+  value: string;
+  editingKey: string | null;
+  editingVal: string;
+  onStartEdit: (key: string) => void;
+  onChangeVal: (v: string) => void;
+  onSave: (key: string, value: string) => void;
+  onCancel: () => void;
+  isPinned: boolean;
+  onTogglePin: () => void;
+  displayVal: (key: string, val: string) => string;
+}) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, display: 'flex', alignItems: 'center' }}>
+        {def?.label ?? propKey}
+        {def?.isSensitive && <span style={{ marginLeft: 4, color: '#e74c3c' }}>🔒</span>}
+        <button
+          onClick={onTogglePin}
+          title={isPinned ? 'Treure de Destacats' : 'Afegir a Destacats'}
+          style={{
+            marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, padding: '0 2px', lineHeight: 1,
+            color: isPinned ? '#f59e0b' : '#d1d5db',
+            opacity: isPinned ? 1 : 0.4,
+            transition: 'opacity 0.15s, color 0.15s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = isPinned ? '1' : '0.4')}
+        >
+          {isPinned ? '★' : '☆'}
+        </button>
+      </div>
+      <InlineValue
+        propKey={propKey}
+        def={def}
+        value={value}
+        displayValue={displayVal(propKey, value)}
+        editingKey={editingKey}
+        editingVal={editingVal}
+        onStartEdit={onStartEdit}
+        onChangeVal={onChangeVal}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    </div>
+  );
+}
+
+// ─── ContactWorkflowsSection ────────────────────────────────────────────────
+
 function ContactWorkflowsSection({ contactId }: { contactId: string }) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -499,55 +727,12 @@ function ContactWorkflowsSection({ contactId }: { contactId: string }) {
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function EditField({
-  label,
-  value,
-  onChange,
-  multiline,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  multiline?: boolean;
-}) {
-  return (
-    <div>
-      {label && (
-        <label style={{ display: 'block', fontSize: 11, color: '#999', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-          {label}
-        </label>
-      )}
-      {multiline ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ ...inputStyle, width: '100%' }}
-        />
-      )}
-    </div>
-  );
-}
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const inputStyle: React.CSSProperties = {
   padding: '6px 10px', border: '1px solid var(--color-border)',
   borderRadius: 5, fontSize: 13, fontFamily: 'inherit', outline: 'none',
   boxSizing: 'border-box',
-};
-
-const primaryBtn: React.CSSProperties = {
-  background: 'var(--color-primary)', color: '#fff', border: 'none',
-  padding: '7px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  cursor: 'pointer', fontFamily: 'inherit',
 };
 
 const outlineBtn: React.CSSProperties = {

@@ -23,6 +23,7 @@ import metaWebhookRoutes from './routes/webhooks/meta.js';
 import tiktokWebhookRoutes from './routes/webhooks/tiktok.js';
 import notificationsRoutes from './routes/notifications.js';
 import workflowsRoutes from './routes/workflows.js';
+import contactLayoutRoutes from './routes/contactLayout.js';
 import workflowEmitterPlugin from './plugins/workflow-emitter.js';
 import workflowSchedulerPlugin from './services/workflow-scheduler.js';
 import metaLeadPollerPlugin from './services/meta-lead-poller.js';
@@ -74,6 +75,7 @@ async function start() {
   await app.register(tiktokWebhookRoutes);
   await app.register(notificationsRoutes);
   await app.register(workflowsRoutes);
+  await app.register(contactLayoutRoutes);
 
   // Initialize workflow engine (subscribes to event bus)
   initWorkflowEngine(app.db);
