@@ -281,10 +281,8 @@ export default function ContactDetailPage() {
 
       {/* Properties card */}
       {displayGroups.map((group) => {
-        const keys = group.keys.filter(
-          (k) => contact.properties[k] !== undefined || (editing && defFor(k)),
-        );
-        if (keys.length === 0 && !editing) return null;
+        const keys = group.keys.filter((k) => defFor(k) !== undefined);
+        if (keys.length === 0) return null;
         return (
           <div
             key={group.label || '__ungrouped__'}
@@ -303,7 +301,6 @@ export default function ContactDetailPage() {
                 const def = defFor(key);
                 if (!def) return null;
                 const val = contact.properties[key] ?? '';
-                if (!val && !editing) return null;
                 return (
                   <div key={key}>
                     <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -352,7 +349,6 @@ export default function ContactDetailPage() {
             {otherKeys.map((key) => {
               const def = defFor(key);
               const val = contact.properties[key] ?? '';
-              if (!val && !editing) return null;
               return (
                 <div key={key}>
                   <div style={{ fontSize: 11, color: '#999', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
