@@ -270,10 +270,20 @@ export default async function formsRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------ submit (public)
   app.post('/api/forms/:id/submit', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = req.body as Record<string, string>;
+    const body = req.body as Record<string, unknown>;
 
     // Honeypot: if _hp field is filled, silently succeed
     if (body['_hp']) return reply.code(200).send({ ok: true });
+
+    // Extract tracking params before processing form fields
+    const trackingParams = typeof body['_tracking'] === 'object' && body['_tracking'] !== null
+      ? body['_tracking'] as Record<string, string>
+      : {};
+    delete body['_tracking'];
+    delete body['_hp'];
+
+    // From here on, body contains only form field values
+    const formData = body as Record<string, string>;
 
     // Rate limiting by IP
     const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] ?? req.socket.remoteAddress;
@@ -296,7 +306,7 @@ export default async function formsRoutes(app: FastifyInstance) {
 
     // Validate required fields (skip hidden fields — user cannot fill them)
     for (const field of fields) {
-      if (field.isRequired && field.isVisible && !body[field.key]?.trim()) {
+      if (field.isRequired && field.isVisible && !formData[field.key]?.trim()) {
         return reply.code(400).send({ error: 'required_field_missing', field: field.key });
       }
     }
@@ -305,14 +315,14 @@ export default async function formsRoutes(app: FastifyInstance) {
     let createdContactId: string | null = null;
     const emailField = fields.find((f) => f.type === 'email' || f.crmPropertyKey === 'email');
     const phoneField = fields.find((f) => f.type === 'phone' || f.crmPropertyKey === 'phone');
-    const emailValue = emailField ? body[emailField.key]?.trim() : undefined;
-    const phoneValue = phoneField ? body[phoneField.key]?.trim() : undefined;
+    const emailValue = emailField ? formData[emailField.key]?.trim() : undefined;
+    const phoneValue = phoneField ? formData[phoneField.key]?.trim() : undefined;
 
     // Reserved crmPropertyKey sentinels that write to core contact columns (not propertyDefinitions)
     const coreFieldMap: Record<string, string | undefined> = {};
     for (const coreKey of ['firstName', 'lastName'] as const) {
       const field = fields.find((f) => f.crmPropertyKey === coreKey);
-      const val = field ? body[field.key]?.trim() : undefined;
+      const val = field ? formData[field.key]?.trim() : undefined;
       if (val) coreFieldMap[coreKey] = val;
     }
 
@@ -369,7 +379,7 @@ export default async function formsRoutes(app: FastifyInstance) {
       const CORE_CONTACT_KEYS = new Set(['firstName', 'lastName', 'email', 'phone']);
       if (createdContactId) {
         const mappedKeys = fields
-          .filter((f) => f.crmPropertyKey && body[f.key] && !CORE_CONTACT_KEYS.has(f.crmPropertyKey))
+          .filter((f) => f.crmPropertyKey && formData[f.key] && !CORE_CONTACT_KEYS.has(f.crmPropertyKey))
           .map((f) => f.crmPropertyKey!);
 
         if (mappedKeys.length > 0) {
@@ -381,7 +391,7 @@ export default async function formsRoutes(app: FastifyInstance) {
           for (const pd of propDefs) {
             const field = fields.find((f) => f.crmPropertyKey === pd.key);
             if (!field) continue;
-            const val = body[field.key];
+            const val = formData[field.key];
             if (!val) continue;
             await app.db
               .insert(contactPropertyValues)
@@ -400,8 +410,9 @@ export default async function formsRoutes(app: FastifyInstance) {
       .insert(formSubmissions)
       .values({
         formId: id,
-        data: body,
+        data: formData,
         createdContactId,
+        trackingParams: Object.keys(trackingParams).length > 0 ? trackingParams : null,
         sourceUrl: req.headers['referer']?.toString() ?? null,
         ipHash,
       })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { BASE_PATH } from '../lib/base-path.js';
 
 type FieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox' | 'static_text';
@@ -65,8 +65,11 @@ async function apiPost(path: string, body: unknown) {
   return res.json();
 }
 
+const TRACKING_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'msclid', 'ttclid'];
+
 export default function FormEmbedPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState<FormData | null>(null);
   const [loading, setLoading] = useState(true);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -131,7 +134,10 @@ export default function FormEmbedPage() {
     setSubmitting(true);
     setGlobalError('');
     try {
-      await apiPost(`/api/forms/${form.id}/submit`, { ...values, _hp: '' });
+      const trackingParams = Object.fromEntries(
+        TRACKING_KEYS.filter(k => searchParams.get(k)).map(k => [k, searchParams.get(k)!])
+      );
+      await apiPost(`/api/forms/${form.id}/submit`, { ...values, _hp: '', _tracking: trackingParams });
       postToParent({ type: 'form:scrollTop' });
       postToParent({ type: 'form:status', status: 'submitted', formId: form.id });
       setSubmitted(true);

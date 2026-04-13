@@ -204,7 +204,29 @@ export default function FormEditorPage() {
   if (!form) return <div style={{ padding: 32, color: '#c0392b' }}>Formulari no trobat.</div>;
 
   const embedUrl = `${window.location.origin}/crm/forms/embed/${form.id}`;
-  const iframeSnippet = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border:none;"></iframe>`;
+  const jsSnippet = `<div id="ca-form-${form.id}"></div>
+<script>
+(function() {
+  var TRACKING_KEYS = ["utm_source","utm_medium","utm_campaign","utm_content","utm_term","fbclid","gclid","msclid","ttclid"];
+  var pageParams = new URLSearchParams(window.location.search);
+  var fwd = new URLSearchParams();
+  TRACKING_KEYS.forEach(function(k) { var v = pageParams.get(k); if (v) fwd.set(k, v); });
+  var base = "${embedUrl}";
+  var src = fwd.toString() ? base + "?" + fwd.toString() : base;
+  var iframe = document.createElement("iframe");
+  iframe.src = src;
+  iframe.width = "100%";
+  iframe.height = "600";
+  iframe.setAttribute("frameborder", "0");
+  iframe.style.border = "none";
+  document.getElementById("ca-form-${form.id}").appendChild(iframe);
+  window.addEventListener("message", function(e) {
+    if (e.data && typeof e.data.height === "number") {
+      iframe.style.height = e.data.height + "px";
+    }
+  });
+})();
+</script>`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -475,10 +497,10 @@ export default function FormEditorPage() {
           <div style={{ padding: 32, maxWidth: 660 }}>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16 }}>Codi d'incrustació (iframe)</div>
             <div style={{ background: '#1c1c1c', color: '#e6db74', fontFamily: 'monospace', fontSize: 13, padding: 16, borderRadius: 8, wordBreak: 'break-all', marginBottom: 16 }}>
-              {iframeSnippet}
+              {jsSnippet}
             </div>
             <button
-              onClick={() => navigator.clipboard.writeText(iframeSnippet)}
+              onClick={() => navigator.clipboard.writeText(jsSnippet)}
               style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 24 }}
             >
               Copiar codi

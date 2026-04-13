@@ -89,6 +89,7 @@ export const formSubmissions = pgTable(
     formId: uuid('form_id').notNull().references(() => forms.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull().$type<Record<string, string>>().default({}),
     createdContactId: uuid('created_contact_id').references(() => contacts.id, { onDelete: 'set null' }),
+    trackingParams: jsonb('tracking_params').$type<Record<string, string>>(),
     sourceUrl: text('source_url'),
     ipHash: text('ip_hash'),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
