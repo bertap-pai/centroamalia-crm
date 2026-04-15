@@ -65,11 +65,13 @@ export default function NotificationPanel({ open, onClose, notifications, onRefe
 
   const handleDismiss = useCallback((id: string) => {
     setDismissed((prev) => new Set(prev).add(id));
-  }, []);
+    onRefetch();
+  }, [onRefetch]);
 
   const handleRead = useCallback((id: string) => {
     setReadIds((prev) => new Set(prev).add(id));
-  }, []);
+    onRefetch();
+  }, [onRefetch]);
 
   async function handleMarkAllRead() {
     try {
