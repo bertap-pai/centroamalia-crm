@@ -5,5 +5,5 @@
 -- treats NULLs as distinct, so non-Meta rows with leadgen_id = NULL are unaffected.
 DROP INDEX IF EXISTS lead_submissions_leadgen_id_uniq;
 
-CREATE UNIQUE INDEX lead_submissions_leadgen_id_uniq
+CREATE UNIQUE INDEX IF NOT EXISTS lead_submissions_leadgen_id_uniq
   ON lead_submissions (leadgen_id);
