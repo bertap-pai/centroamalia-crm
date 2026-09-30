@@ -487,7 +487,9 @@ export default function ContactDetailPage() {
                 <strong>{booking.service}</strong>
                 {booking.isTest && <span style={{ marginLeft: 8, color: '#777', fontSize: 11 }}>Prova</span>}
                 <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
-                {booking.source && <div style={{ color: '#777', marginTop: 3 }}>Canal: {booking.source}</div>}
+                <div style={{ color: '#777', marginTop: 3 }}>
+                  {booking.source ? `Canal: ${booking.source}` : 'Canal no atribuït'}
+                </div>
               </div>
               <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>
               <Link to={`/deals/${booking.dealId}`}>Deal</Link>

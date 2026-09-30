@@ -37,7 +37,11 @@ const body = {
   starts_at: '2026-10-01T10:00:00+02:00',
   source: 'google',
   marketing_attribution_consented: true,
-  attribution: { first_gclid: 'TEST-CLICK', utm_source: 'google', landing_url: 'https://centroamalia.com/reserva' },
+  attribution: {
+    first_gclid: 'TEST-CLICK', utm_source: 'google',
+    first_landing_url: 'https://centroamalia.com/serveis/fisioterapia',
+    last_landing_url: 'https://centroamalia.com/reserva',
+  },
   is_test: true,
 };
 const endpoint = '/api/integrations/doctoralia/bookings';
@@ -81,13 +85,13 @@ test('booking ingress is atomic and idempotent, including the deal', async () =>
       ORDER BY pd.key
     `;
     assert.deepEqual(leadSources.map(({ key, value }) => [key, value]), [
-      ['first_lead_source', 'doctoralia_booking'],
-      ['last_lead_source', 'doctoralia_booking'],
+      ['first_lead_source', 'google'],
+      ['last_lead_source', 'google'],
     ]);
     const [sourceOption] = await sql`
       SELECT count(*)::int AS total FROM property_definitions
       WHERE key IN ('first_lead_source', 'last_lead_source')
-        AND options @> '[{"key":"doctoralia_booking"}]'::jsonb
+        AND options @> '[{"key":"google"}]'::jsonb
     `;
     assert.equal(sourceOption?.total, 2);
     const [pageUrl] = await sql`
@@ -96,7 +100,13 @@ test('booking ingress is atomic and idempotent, including the deal', async () =>
       JOIN property_definitions pd ON pd.id = cpv.property_definition_id
       WHERE cpv.contact_id = ${created.contact_id} AND pd.key = 'first_page_url'
     `;
-    assert.equal(pageUrl?.value, 'https://centroamalia.com/reserva');
+    assert.equal(pageUrl?.value, 'https://centroamalia.com/serveis/fisioterapia');
+    const [lastPageUrl] = await sql`
+      SELECT cpv.value FROM contact_property_values cpv
+      JOIN property_definitions pd ON pd.id = cpv.property_definition_id
+      WHERE cpv.contact_id = ${created.contact_id} AND pd.key = 'last_page_url'
+    `;
+    assert.equal(lastPageUrl?.value, 'https://centroamalia.com/reserva');
     const [saved] = await sql`SELECT attribution, is_test FROM booking_imports WHERE provider_booking_id = ${body.booking_id}`;
     assert.ok(saved);
     assert.equal(saved.attribution.first_gclid, 'TEST-CLICK');
@@ -109,8 +119,9 @@ test('booking ingress is atomic and idempotent, including the deal', async () =>
     });
     assert.equal(noConsent.statusCode, 201, noConsent.body);
     assert.equal(noConsent.json().contact_id, created.contact_id);
-    const [untracked] = await sql`SELECT attribution FROM booking_imports WHERE provider_booking_id = ${noConsentId}`;
+    const [untracked] = await sql`SELECT attribution, source FROM booking_imports WHERE provider_booking_id = ${noConsentId}`;
     assert.deepEqual(untracked?.attribution, {});
+    assert.equal(untracked?.source, null);
 
     const concurrentId = `integration-test-concurrent-${randomUUID()}`;
     const concurrentPayload = { ...body, booking_id: concurrentId };

@@ -21,7 +21,7 @@ const ATTRIBUTION_KEYS = [
   'utm_source', 'utm_medium', 'utm_campaign',
   'first_utm_source', 'first_utm_medium', 'first_utm_campaign',
   'last_utm_source', 'last_utm_medium', 'last_utm_campaign',
-  'landing_url', 'referrer', 'captured_at',
+  'landing_url', 'first_landing_url', 'last_landing_url', 'referrer', 'captured_at',
 ] as const;
 
 type BookingBody = {
@@ -70,7 +70,7 @@ export function parseBooking(body: unknown): { booking: BookingBody; phone: stri
     for (const key of ATTRIBUTION_KEYS) {
       const value = booking.attribution?.[key];
       if (value !== undefined && value !== null) {
-        if (!boundedText(value, key === 'landing_url' || key === 'referrer' ? 2048 : 512)) return null;
+        if (!boundedText(value, key.endsWith('_url') || key === 'referrer' ? 2048 : 512)) return null;
         if (key === 'captured_at' && (!/(Z|[+-]\d{2}:\d{2})$/.test(value) || Number.isNaN(new Date(value).getTime()))) return null;
         attribution[key] = value.trim();
       }
@@ -120,21 +120,26 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
         await tx.update(contacts).set({ possibleIdentityMismatch: true }).where(eq(contacts.id, contact.id));
       }
 
-      const properties: Record<string, string> = {
-        first_lead_source: 'doctoralia_booking',
-        last_lead_source: 'doctoralia_booking',
-      };
+      const properties: Record<string, string> = {};
+      const acquisitionSource = booking.marketing_attribution_consented ? booking.source?.trim().toLowerCase() : null;
+      const firstSource = attribution.first_utm_source?.toLowerCase() ?? attribution.utm_source?.toLowerCase() ?? acquisitionSource;
+      const lastSource = attribution.last_utm_source?.toLowerCase() ?? attribution.utm_source?.toLowerCase() ?? acquisitionSource;
+      if (firstSource) properties.first_lead_source = firstSource;
+      if (lastSource) properties.last_lead_source = lastSource;
       for (const key of ['utm_source', 'utm_medium', 'utm_campaign'] as const) {
         const suffix = key.slice(4);
         if (attribution[`first_${key}`] || attribution[key]) properties[`first_utm_${suffix}`] = attribution[`first_${key}`] ?? attribution[key]!;
         if (attribution[`last_${key}`] || attribution[key]) properties[`last_utm_${suffix}`] = attribution[`last_${key}`] ?? attribution[key]!;
       }
-      if (attribution.landing_url) {
-        properties.first_page_url = attribution.landing_url;
-        properties.last_page_url = attribution.landing_url;
-      }
-      const defs = await tx.select({ id: propertyDefinitions.id, key: propertyDefinitions.key })
-        .from(propertyDefinitions).where(inArray(propertyDefinitions.key, Object.keys(properties)));
+      const firstPageUrl = attribution.first_landing_url ?? attribution.landing_url;
+      const lastPageUrl = attribution.last_landing_url ?? attribution.landing_url;
+      if (firstPageUrl) properties.first_page_url = firstPageUrl;
+      if (lastPageUrl) properties.last_page_url = lastPageUrl;
+      const propertyKeys = Object.keys(properties);
+      const defs = propertyKeys.length
+        ? await tx.select({ id: propertyDefinitions.id, key: propertyDefinitions.key })
+          .from(propertyDefinitions).where(inArray(propertyDefinitions.key, propertyKeys))
+        : [];
       for (const def of defs) {
         const value = properties[def.key];
         if (!value) continue;
@@ -173,7 +178,7 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
         service: booking.service.trim(),
         professional: booking.professional.trim(),
         startsAt,
-        source: booking.source?.trim() || null,
+        source: acquisitionSource || null,
         attribution: sql`(${JSON.stringify(attribution)}::text)::jsonb`,
         isTest: booking.is_test ?? false,
       }).returning();
