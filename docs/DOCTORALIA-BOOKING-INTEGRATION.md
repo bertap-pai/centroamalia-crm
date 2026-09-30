@@ -1,6 +1,6 @@
 # Doctoralia bookings into the standalone Centro Amalia CRM
 
-This integration is for the CRM at `https://intranet.centroamalia.com/crm/` while that CRM and the Orkestra CRM module run in parallel. The website backend submits only Doctoralia-confirmed bookings, including confirmations discovered by reconciliation. This endpoint does **not** send to Orkestra or synchronize the two CRM databases.
+This integration is for the CRM at `https://intranet.centroamalia.com/crm/` while that CRM and the Orkestra CRM module run in parallel. The website backend submits only Doctoralia-confirmed bookings, including confirmations discovered by reconciliation. During this coexistence period, the website has **one destination: the standalone intranet CRM**; it must not dual-write to the Orkestra CRM module. This endpoint does **not** send to Orkestra or synchronize the two CRM databases.
 
 ## Website handoff
 
