@@ -18,4 +18,4 @@ The CRM stores one booking per Doctoralia ID and links it to a contact identifie
 2. Verify a restorable PostgreSQL backup and record a rollback plan before rebuilding. The API image runs migrations automatically when started.
 3. Install a dedicated 32+ character Bearer secret on the standalone CRM and the website backend through a secure channel. Do not reuse the Orkestra-module staging secret or put the value in git/chat. Do not enable the public website sender yet.
 4. Configure and verify the production Leads / Nou Lead pipeline and stage IDs above. A booking may not be accepted without its deal.
-5. Test one controlled booking, then retry its `booking_id`: one booking, one contact association, and at most one deal. Confirm the booking in the CRM contact detail. Keep both CRM databases independent until a separate migration plan is approved.
+5. Test one controlled booking, then retry its `booking_id`: one booking, one contact association, and exactly one deal. Confirm the booking in the CRM contact detail. Keep both CRM databases independent until a separate migration plan is approved.
