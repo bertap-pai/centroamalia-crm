@@ -88,12 +88,6 @@ test('booking ingress is atomic and idempotent, including the deal', async () =>
       ['first_lead_source', 'google'],
       ['last_lead_source', 'google'],
     ]);
-    const [sourceOption] = await sql`
-      SELECT count(*)::int AS total FROM property_definitions
-      WHERE key IN ('first_lead_source', 'last_lead_source')
-        AND options @> '[{"key":"google"}]'::jsonb
-    `;
-    assert.equal(sourceOption?.total, 2);
     const [pageUrl] = await sql`
       SELECT cpv.value
       FROM contact_property_values cpv

@@ -52,12 +52,24 @@ interface PropertyDef {
   label: string;
   type: string;
   scope: string;
-  options: Array<{ key: string; label: string }> | null;
+  options: Array<{ key: string; label: string }> | string | null;
   isSensitive: boolean;
   group: string | null;
 }
 
 const CORE_KEYS = ['first_name', 'last_name', 'email', 'phone_e164', 'servei_interes'];
+
+function propertyOptions(def: PropertyDef): Array<{ key: string; label: string }> {
+  try {
+    const value: unknown = typeof def.options === 'string' ? JSON.parse(def.options) : def.options;
+    return Array.isArray(value)
+      ? value.filter((option): option is { key: string; label: string } =>
+        typeof option?.key === 'string' && typeof option?.label === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 const CORE_FIELD_MAP: Record<string, string> = {
   first_name: 'firstName',
@@ -166,8 +178,8 @@ export default function ContactDetailPage() {
   const displayVal = (key: string, val: string) => {
     const def = defFor(key);
     if (!def || !val) return val || '';
-    if ((def.type === 'select' || def.type === 'multiselect') && def.options) {
-      return def.options.find((o) => o.key === val)?.label ?? val;
+    if (def.type === 'select' || def.type === 'multiselect') {
+      return propertyOptions(def).find((o) => o.key === val)?.label ?? val;
     }
     if (def.type === 'datetime' || def.type === 'date') {
       try {
@@ -589,7 +601,8 @@ function InlineValue({
   onCancel: () => void;
 }) {
   if (editingKey === propKey) {
-    if (def?.type === 'select' && def.options) {
+    if (def?.type === 'select' && propertyOptions(def).length > 0) {
+      const options = propertyOptions(def);
       return (
         <select
           value={editingVal}
@@ -599,7 +612,8 @@ function InlineValue({
           style={{ ...inputStyle, width: '100%' }}
         >
           <option value="">— Selecciona —</option>
-          {def.options.map((o) => (
+          {value && !options.some((o) => o.key === value) && <option value={value}>{value}</option>}
+          {options.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>
