@@ -277,8 +277,13 @@ export default function ContactDetailPage() {
           </div>
 
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{name}</h2>
+              {contact.bookings?.length > 0 && (
+                <span style={{ fontSize: 11, background: '#f1f1ff', color: '#5145ba', borderRadius: 4, padding: '3px 7px', fontWeight: 600 }}>
+                  Reserva Doctoralia
+                </span>
+              )}
               {contact.archivedAt && (
                 <span style={{ fontSize: 11, background: '#eee', color: '#888', borderRadius: 4, padding: '2px 6px' }}>
                   Arxivat
@@ -482,6 +487,7 @@ export default function ContactDetailPage() {
                 <strong>{booking.service}</strong>
                 {booking.isTest && <span style={{ marginLeft: 8, color: '#777', fontSize: 11 }}>Prova</span>}
                 <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
+                {booking.source && <div style={{ color: '#777', marginTop: 3 }}>Canal: {booking.source}</div>}
               </div>
               <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>
               <Link to={`/deals/${booking.dealId}`}>Deal</Link>

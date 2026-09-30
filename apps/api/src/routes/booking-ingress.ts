@@ -121,8 +121,8 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
       }
 
       const properties: Record<string, string> = {
-        first_lead_source: 'website_form',
-        last_lead_source: 'website_form',
+        first_lead_source: 'doctoralia_booking',
+        last_lead_source: 'doctoralia_booking',
       };
       for (const key of ['utm_source', 'utm_medium', 'utm_campaign'] as const) {
         const suffix = key.slice(4);

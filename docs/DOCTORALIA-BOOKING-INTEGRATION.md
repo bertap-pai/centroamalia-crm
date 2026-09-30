@@ -12,6 +12,8 @@ First delivery returns `201 created`; repeats return `200 duplicate` with the sa
 
 The CRM stores one booking per Doctoralia ID and links it to a contact identified by normalized phone. Every new booking also creates exactly one deal in **Leads -> Nou Lead**; contact detail shows both. Production must configure `DOCTORALIA_DEFAULT_PIPELINE_ID=00000000-0000-0000-0000-000000000001` and `DOCTORALIA_DEFAULT_STAGE_ID=00000000-0000-0000-0001-000000000001`, verified against the live stage listing on 2026-09-30. Missing configuration returns `503` before any write. Attribution is retained only when the request says marketing consent was granted.
 
+The contact's first/last lead-source properties identify the intake path as `doctoralia_booking` (displayed as **Reserva Doctoralia**); an existing first-touch value is preserved. The booking's separate `source` field is the acquisition channel when known, such as `google`, not the booking provider. Do not label these bookings `website_form` or infer a marketing channel from Doctoralia itself. A consented `attribution.landing_url` can populate first/last page URL, but the current website outbox does not send that field; without a supplied URL, the CRM must leave it blank rather than invent one. The website developer must add the URL to the consented payload if first-page tracking is required.
+
 ## Release gate
 
 1. Start from deployed CRM commit `0615641` or a verified descendant. The additive migration is `0024_booking_imports.sql`; `0021` is already used by form tracking in this CRM. Never apply the Orkestra-module migration with the same number here.

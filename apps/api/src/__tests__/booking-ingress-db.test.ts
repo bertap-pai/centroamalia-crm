@@ -37,7 +37,7 @@ const body = {
   starts_at: '2026-10-01T10:00:00+02:00',
   source: 'google',
   marketing_attribution_consented: true,
-  attribution: { first_gclid: 'TEST-CLICK', utm_source: 'google' },
+  attribution: { first_gclid: 'TEST-CLICK', utm_source: 'google', landing_url: 'https://centroamalia.com/reserva' },
   is_test: true,
 };
 const endpoint = '/api/integrations/doctoralia/bookings';
@@ -72,6 +72,31 @@ test('booking ingress is atomic and idempotent, including the deal', async () =>
       FROM booking_imports WHERE provider_booking_id = ${body.booking_id}
     `;
     assert.deepEqual(counts, { bookings: 1, contacts: 1, deals: 1 });
+    const leadSources = await sql`
+      SELECT pd.key, cpv.value
+      FROM contact_property_values cpv
+      JOIN property_definitions pd ON pd.id = cpv.property_definition_id
+      WHERE cpv.contact_id = ${created.contact_id}
+        AND pd.key IN ('first_lead_source', 'last_lead_source')
+      ORDER BY pd.key
+    `;
+    assert.deepEqual(leadSources.map(({ key, value }) => [key, value]), [
+      ['first_lead_source', 'doctoralia_booking'],
+      ['last_lead_source', 'doctoralia_booking'],
+    ]);
+    const [sourceOption] = await sql`
+      SELECT count(*)::int AS total FROM property_definitions
+      WHERE key IN ('first_lead_source', 'last_lead_source')
+        AND options @> '[{"key":"doctoralia_booking"}]'::jsonb
+    `;
+    assert.equal(sourceOption?.total, 2);
+    const [pageUrl] = await sql`
+      SELECT cpv.value
+      FROM contact_property_values cpv
+      JOIN property_definitions pd ON pd.id = cpv.property_definition_id
+      WHERE cpv.contact_id = ${created.contact_id} AND pd.key = 'first_page_url'
+    `;
+    assert.equal(pageUrl?.value, 'https://centroamalia.com/reserva');
     const [saved] = await sql`SELECT attribution, is_test FROM booking_imports WHERE provider_booking_id = ${body.booking_id}`;
     assert.ok(saved);
     assert.equal(saved.attribution.first_gclid, 'TEST-CLICK');
