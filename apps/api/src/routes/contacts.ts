@@ -23,6 +23,7 @@ import {
   pipelines,
   stages,
   users,
+  bookingImports,
 } from '@crm/db';
 import { normalizePhone } from '../lib/phone.js';
 import { sseRegistry } from '../lib/sse-registry.js';
@@ -255,6 +256,18 @@ export default async function contactsRoutes(app: FastifyInstance) {
       const properties: Record<string, string> = {};
       for (const pv of pvRows) properties[pv.key] = pv.value ?? '';
 
+      const bookings = await app.db.select({
+        id: bookingImports.id,
+        providerBookingId: bookingImports.providerBookingId,
+        dealId: bookingImports.dealId,
+        service: bookingImports.service,
+        professional: bookingImports.professional,
+        startsAt: bookingImports.startsAt,
+        source: bookingImports.source,
+        createdAt: bookingImports.createdAt,
+      }).from(bookingImports).where(eq(bookingImports.contactId, id))
+        .orderBy(desc(bookingImports.startsAt));
+
       // Linked deals
       const linkedDeals = await app.db
         .select({
@@ -293,6 +306,7 @@ export default async function contactsRoutes(app: FastifyInstance) {
       return {
         ...contact,
         properties,
+        bookings,
         deals: linkedDeals.map((d) => ({
           ...d,
           ownerName: d.ownerUserId ? (ownerMap[d.ownerUserId] ?? null) : null,

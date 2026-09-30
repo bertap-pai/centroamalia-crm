@@ -17,6 +17,17 @@ interface ContactDetail {
   possibleIdentityMismatch: boolean;
   properties: Record<string, string>;
   deals: DealRow[];
+  bookings: BookingRow[];
+}
+
+interface BookingRow {
+  id: string;
+  providerBookingId: string;
+  dealId: string | null;
+  service: string;
+  professional: string;
+  startsAt: string;
+  source: string | null;
 }
 
 interface DealRow {
@@ -172,6 +183,9 @@ export default function ContactDetailPage() {
     if (!s) return '—';
     return new Intl.DateTimeFormat('ca-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(s));
   };
+  const fmtDateTime = (s: string) => new Intl.DateTimeFormat('ca-ES', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid',
+  }).format(new Date(s));
 
   if (loading) return <div style={{ padding: 48, color: '#999' }}>Carregant...</div>;
   if (error) return <div style={{ padding: 48, color: 'var(--color-error)' }}>{error}</div>;
@@ -453,6 +467,24 @@ export default function ContactDetailPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {contact.bookings?.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555' }}>
+            Reserves Doctoralia ({contact.bookings.length})
+          </h3>
+          {contact.bookings.map((booking) => (
+            <div key={booking.id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', fontSize: 13 }}>
+              <div style={{ flex: 1 }}>
+                <strong>{booking.service}</strong>
+                <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
+              </div>
+              <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>
+              {booking.dealId && <Link to={`/deals/${booking.dealId}`}>Deal</Link>}
+            </div>
+          ))}
         </div>
       )}
 
