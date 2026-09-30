@@ -28,6 +28,7 @@ interface BookingRow {
   professional: string;
   startsAt: string;
   source: string | null;
+  isTest: boolean;
 }
 
 interface DealRow {
@@ -479,6 +480,7 @@ export default function ContactDetailPage() {
             <div key={booking.id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', fontSize: 13 }}>
               <div style={{ flex: 1 }}>
                 <strong>{booking.service}</strong>
+                {booking.isTest && <span style={{ marginLeft: 8, color: '#777', fontSize: 11 }}>Prova</span>}
                 <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
               </div>
               <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>

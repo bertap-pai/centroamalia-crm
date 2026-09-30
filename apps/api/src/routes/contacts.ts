@@ -264,6 +264,7 @@ export default async function contactsRoutes(app: FastifyInstance) {
         professional: bookingImports.professional,
         startsAt: bookingImports.startsAt,
         source: bookingImports.source,
+        isTest: bookingImports.isTest,
         createdAt: bookingImports.createdAt,
       }).from(bookingImports).where(eq(bookingImports.contactId, id))
         .orderBy(desc(bookingImports.startsAt));
