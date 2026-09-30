@@ -8,12 +8,13 @@ const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error('TEST_DATABASE_URL is required');
 const sql = postgres(url);
 const [stage] = await sql`
-  SELECT s.id AS stage_id, p.id AS pipeline_id
+  SELECT s.id AS stage_id, p.id AS pipeline_id, s.name AS stage_name
   FROM stages s JOIN pipelines p ON p.id = s.pipeline_id
-  WHERE p.slug = 'leads' AND NOT s.is_closed_won AND NOT s.is_closed_lost
-  ORDER BY s.position LIMIT 1
+  WHERE p.id = '00000000-0000-0000-0000-000000000001'
+    AND s.id = '00000000-0000-0000-0001-000000000001'
 `;
-if (!stage) throw new Error('No open leads stage in test database');
+if (!stage) throw new Error('Nou Lead stage missing from test database');
+assert.equal(stage.stage_name, 'Nou Lead');
 
 process.env.DATABASE_URL = url;
 process.env.GOOGLE_CLIENT_ID = 'test';

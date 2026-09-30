@@ -81,7 +81,7 @@ export function parseBooking(body: unknown): { booking: BookingBody; phone: stri
 
 export default async function bookingIngressRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/integrations/doctoralia/bookings', { bodyLimit: 16_384 }, async (req, reply) => {
-    if (!env.CRM_BOOKING_INGRESS_SECRET) return reply.code(503).send({ error: 'integration_unavailable' });
+    if (env.CRM_BOOKING_INGRESS_SECRET.length < 32) return reply.code(503).send({ error: 'integration_unavailable' });
     if (!authorized(req.headers.authorization, env.CRM_BOOKING_INGRESS_SECRET)) {
       return reply.code(401).send({ error: 'unauthorized' });
     }
@@ -90,7 +90,7 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
     const { booking, phone, startsAt, attribution } = parsed;
     const pipelineId = env.DOCTORALIA_DEFAULT_PIPELINE_ID;
     const stageId = env.DOCTORALIA_DEFAULT_STAGE_ID;
-    if (Boolean(pipelineId) !== Boolean(stageId)) return reply.code(503).send({ error: 'deal_stage_not_configured' });
+    if (!pipelineId || !stageId) return reply.code(503).send({ error: 'deal_stage_not_configured' });
 
     const result = await app.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${booking.booking_id}, 0))`);
@@ -148,26 +148,23 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
         });
       }
 
-      let dealId: string | null = null;
-      if (pipelineId && stageId) {
-        const [stage] = await tx.select({ id: stages.id, isClosedWon: stages.isClosedWon, isClosedLost: stages.isClosedLost })
-          .from(stages).where(and(eq(stages.id, stageId), eq(stages.pipelineId, pipelineId))).limit(1);
-        if (!stage) throw new Error('doctoralia_stage_not_found');
-        const now = new Date();
-        const [deal] = await tx.insert(deals).values({
-          pipelineId, stageId, ownerUserId: null,
-          isClosedWon: stage.isClosedWon, isClosedLost: stage.isClosedLost,
-          currentStageEnteredAt: now, createdByUserId: null,
-          externalId: `doctoralia:${booking.booking_id}`,
-        }).returning({ id: deals.id });
-        if (!deal) throw new Error('deal_insert_failed');
-        dealId = deal.id;
-        await tx.insert(dealContacts).values({ dealId, contactId: contact.id, isPrimary: true });
-        await tx.insert(dealStageEvents).values({
-          dealId, pipelineId, fromStageId: null, toStageId: stageId,
-          changedAt: now, changedByUserId: null, source: 'api',
-        });
-      }
+      const [stage] = await tx.select({ id: stages.id, isClosedWon: stages.isClosedWon, isClosedLost: stages.isClosedLost })
+        .from(stages).where(and(eq(stages.id, stageId), eq(stages.pipelineId, pipelineId))).limit(1);
+      if (!stage) throw new Error('doctoralia_stage_not_found');
+      const now = new Date();
+      const [deal] = await tx.insert(deals).values({
+        pipelineId, stageId, ownerUserId: null,
+        isClosedWon: stage.isClosedWon, isClosedLost: stage.isClosedLost,
+        currentStageEnteredAt: now, createdByUserId: null,
+        externalId: `doctoralia:${booking.booking_id}`,
+      }).returning({ id: deals.id });
+      if (!deal) throw new Error('deal_insert_failed');
+      const dealId = deal.id;
+      await tx.insert(dealContacts).values({ dealId, contactId: contact.id, isPrimary: true });
+      await tx.insert(dealStageEvents).values({
+        dealId, pipelineId, fromStageId: null, toStageId: stageId,
+        changedAt: now, changedByUserId: null, source: 'api',
+      });
 
       const [row] = await tx.insert(bookingImports).values({
         providerBookingId: booking.booking_id,

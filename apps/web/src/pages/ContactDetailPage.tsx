@@ -23,7 +23,7 @@ interface ContactDetail {
 interface BookingRow {
   id: string;
   providerBookingId: string;
-  dealId: string | null;
+  dealId: string;
   service: string;
   professional: string;
   startsAt: string;
@@ -484,7 +484,7 @@ export default function ContactDetailPage() {
                 <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
               </div>
               <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>
-              {booking.dealId && <Link to={`/deals/${booking.dealId}`}>Deal</Link>}
+              <Link to={`/deals/${booking.dealId}`}>Deal</Link>
             </div>
           ))}
         </div>

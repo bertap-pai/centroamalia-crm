@@ -6,7 +6,7 @@ export const bookingImports = pgTable('booking_imports', {
   id: uuid('id').primaryKey().defaultRandom(),
   providerBookingId: text('provider_booking_id').notNull().unique(),
   contactId: uuid('contact_id').notNull().references(() => contacts.id, { onDelete: 'restrict' }),
-  dealId: uuid('deal_id').references(() => deals.id, { onDelete: 'set null' }),
+  dealId: uuid('deal_id').notNull().references(() => deals.id, { onDelete: 'restrict' }),
   service: text('service').notNull(),
   professional: text('professional').notNull(),
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),

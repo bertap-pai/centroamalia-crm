@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS "booking_imports" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "provider_booking_id" text NOT NULL UNIQUE,
   "contact_id" uuid NOT NULL REFERENCES "contacts"("id") ON DELETE RESTRICT,
-  "deal_id" uuid REFERENCES "deals"("id") ON DELETE SET NULL,
+  "deal_id" uuid NOT NULL REFERENCES "deals"("id") ON DELETE RESTRICT,
   "service" text NOT NULL,
   "professional" text NOT NULL,
   "starts_at" timestamptz NOT NULL,
