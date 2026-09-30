@@ -28,6 +28,9 @@ export const env = {
   TIKTOK_ACCESS_TOKEN: process.env['TIKTOK_ACCESS_TOKEN'] ?? '',
   TIKTOK_DEFAULT_PIPELINE_ID: process.env['TIKTOK_DEFAULT_PIPELINE_ID'] ?? '',
   TIKTOK_DEFAULT_STAGE_ID: process.env['TIKTOK_DEFAULT_STAGE_ID'] ?? '',
+  CRM_BOOKING_INGRESS_SECRET: process.env['CRM_BOOKING_INGRESS_SECRET'] ?? '',
+  DOCTORALIA_DEFAULT_PIPELINE_ID: process.env['DOCTORALIA_DEFAULT_PIPELINE_ID'] ?? '',
+  DOCTORALIA_DEFAULT_STAGE_ID: process.env['DOCTORALIA_DEFAULT_STAGE_ID'] ?? '',
   // Downtime alert: fire notification if server was offline longer than this
   DOWNTIME_ALERT_THRESHOLD_MINUTES: parseInt(process.env['DOWNTIME_ALERT_THRESHOLD_MINUTES'] ?? '10', 10),
 } as const;

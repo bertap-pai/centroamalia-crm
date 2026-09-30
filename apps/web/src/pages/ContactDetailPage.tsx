@@ -17,6 +17,18 @@ interface ContactDetail {
   possibleIdentityMismatch: boolean;
   properties: Record<string, string>;
   deals: DealRow[];
+  bookings: BookingRow[];
+}
+
+interface BookingRow {
+  id: string;
+  providerBookingId: string;
+  dealId: string;
+  service: string;
+  professional: string;
+  startsAt: string;
+  source: string | null;
+  isTest: boolean;
 }
 
 interface DealRow {
@@ -40,12 +52,24 @@ interface PropertyDef {
   label: string;
   type: string;
   scope: string;
-  options: Array<{ key: string; label: string }> | null;
+  options: Array<{ key: string; label: string }> | string | null;
   isSensitive: boolean;
   group: string | null;
 }
 
 const CORE_KEYS = ['first_name', 'last_name', 'email', 'phone_e164', 'servei_interes'];
+
+function propertyOptions(def: PropertyDef): Array<{ key: string; label: string }> {
+  try {
+    const value: unknown = typeof def.options === 'string' ? JSON.parse(def.options) : def.options;
+    return Array.isArray(value)
+      ? value.filter((option): option is { key: string; label: string } =>
+        typeof option?.key === 'string' && typeof option?.label === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 const CORE_FIELD_MAP: Record<string, string> = {
   first_name: 'firstName',
@@ -154,8 +178,8 @@ export default function ContactDetailPage() {
   const displayVal = (key: string, val: string) => {
     const def = defFor(key);
     if (!def || !val) return val || '';
-    if ((def.type === 'select' || def.type === 'multiselect') && def.options) {
-      return def.options.find((o) => o.key === val)?.label ?? val;
+    if (def.type === 'select' || def.type === 'multiselect') {
+      return propertyOptions(def).find((o) => o.key === val)?.label ?? val;
     }
     if (def.type === 'datetime' || def.type === 'date') {
       try {
@@ -172,6 +196,9 @@ export default function ContactDetailPage() {
     if (!s) return '—';
     return new Intl.DateTimeFormat('ca-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(s));
   };
+  const fmtDateTime = (s: string) => new Intl.DateTimeFormat('ca-ES', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid',
+  }).format(new Date(s));
 
   if (loading) return <div style={{ padding: 48, color: '#999' }}>Carregant...</div>;
   if (error) return <div style={{ padding: 48, color: 'var(--color-error)' }}>{error}</div>;
@@ -262,8 +289,13 @@ export default function ContactDetailPage() {
           </div>
 
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{name}</h2>
+              {contact.bookings?.length > 0 && (
+                <span style={{ fontSize: 11, background: '#f1f1ff', color: '#5145ba', borderRadius: 4, padding: '3px 7px', fontWeight: 600 }}>
+                  Reserva Doctoralia
+                </span>
+              )}
               {contact.archivedAt && (
                 <span style={{ fontSize: 11, background: '#eee', color: '#888', borderRadius: 4, padding: '2px 6px' }}>
                   Arxivat
@@ -456,6 +488,28 @@ export default function ContactDetailPage() {
         </div>
       )}
 
+      {contact.bookings?.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#555' }}>
+            Reserves Doctoralia ({contact.bookings.length})
+          </h3>
+          {contact.bookings.map((booking) => (
+            <div key={booking.id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', fontSize: 13 }}>
+              <div style={{ flex: 1 }}>
+                <strong>{booking.service}</strong>
+                {booking.isTest && <span style={{ marginLeft: 8, color: '#777', fontSize: 11 }}>Prova</span>}
+                <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
+                <div style={{ color: '#777', marginTop: 3 }}>
+                  {booking.source ? `Canal: ${booking.source}` : 'Canal no atribuït'}
+                </div>
+              </div>
+              <span style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(booking.startsAt)}</span>
+              <Link to={`/deals/${booking.dealId}`}>Deal</Link>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Deals */}
       <div
         style={{
@@ -547,7 +601,8 @@ function InlineValue({
   onCancel: () => void;
 }) {
   if (editingKey === propKey) {
-    if (def?.type === 'select' && def.options) {
+    if (def?.type === 'select' && propertyOptions(def).length > 0) {
+      const options = propertyOptions(def);
       return (
         <select
           value={editingVal}
@@ -557,7 +612,8 @@ function InlineValue({
           style={{ ...inputStyle, width: '100%' }}
         >
           <option value="">— Selecciona —</option>
-          {def.options.map((o) => (
+          {value && !options.some((o) => o.key === value) && <option value={value}>{value}</option>}
+          {options.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>

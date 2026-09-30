@@ -25,6 +25,7 @@
     { "idx": 20, "version": "7", "when": 1743602407000, "tag": "0020_lead_submissions_leadgen_id", "breakpoints": true },
     { "idx": 21, "version": "7", "when": 1743602408000, "tag": "0021_form_submissions_tracking_params", "breakpoints": true },
     { "idx": 22, "version": "7", "when": 1743602409000, "tag": "0022_fix_leadgen_id_partial_index", "breakpoints": true },
-    { "idx": 23, "version": "7", "when": 1743602410000, "tag": "0023_contact_layout_config", "breakpoints": true }
+    { "idx": 23, "version": "7", "when": 1743602410000, "tag": "0023_contact_layout_config", "breakpoints": true },
+    { "idx": 24, "version": "7", "when": 1743602411000, "tag": "0024_booking_imports", "breakpoints": true }
   ]
 }
