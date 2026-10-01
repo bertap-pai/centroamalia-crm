@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   bookingImports,
+  bookingAliases,
+  bookingStatusEvents,
   contacts,
   contactPropertyValues,
   dealContacts,
@@ -13,6 +15,7 @@ import {
 } from '@crm/db';
 import { env } from '../env.js';
 import { normalizePhone } from '../lib/phone.js';
+import { parseBookingStatusChange, reconcileBookingStatus, resolveBookingAlias } from '../lib/doctoralia-booking-status.js';
 
 const ATTRIBUTION_KEYS = [
   'gclid', 'gbraid', 'wbraid', 'fbclid',
@@ -80,6 +83,60 @@ export function parseBooking(body: unknown): { booking: BookingBody; phone: stri
 }
 
 export default async function bookingIngressRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/api/integrations/doctoralia/bookings/status', { bodyLimit: 2_048 }, async (req, reply) => {
+    if (env.CRM_BOOKING_INGRESS_SECRET.length < 32) return reply.code(503).send({ error: 'integration_unavailable' });
+    if (!authorized(req.headers.authorization, env.CRM_BOOKING_INGRESS_SECRET)) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const parsed = parseBookingStatusChange(req.body);
+    if (!parsed) return reply.code(400).send({ error: 'invalid_booking_status' });
+    const { change, occurredAt, newStartsAt, payloadHash } = parsed;
+
+    const result = await app.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('doctoralia-booking-status', 0))`);
+      const [existing] = await tx.select().from(bookingStatusEvents)
+        .where(eq(bookingStatusEvents.eventId, change.event_id)).limit(1);
+      if (existing?.payloadHash !== undefined && existing.payloadHash !== payloadHash) return { kind: 'event_id_conflict' as const };
+      if (!existing) await tx.insert(bookingStatusEvents).values({
+        eventId: change.event_id,
+        providerBookingId: change.booking_id,
+        status: change.status,
+        occurredAt,
+        newProviderBookingId: change.new_booking_id ?? null,
+        newStartsAt,
+        payloadHash,
+      });
+
+      const bookingImportId = await resolveBookingAlias(tx, change.booking_id);
+      if (bookingImportId) await reconcileBookingStatus(tx, bookingImportId);
+      const [event] = await tx.select({ resolution: bookingStatusEvents.resolution }).from(bookingStatusEvents)
+        .where(eq(bookingStatusEvents.eventId, change.event_id)).limit(1);
+      if (!bookingImportId || event?.resolution === 'pending') return { kind: 'pending' as const };
+      if (event?.resolution === 'conflict') return { kind: 'status_conflict' as const };
+      const [booking] = await tx.select().from(bookingImports)
+        .where(eq(bookingImports.id, bookingImportId)).limit(1);
+      return { kind: existing ? 'duplicate' as const : event?.resolution as 'applied' | 'stale', booking };
+    });
+    if (result.kind === 'event_id_conflict' || result.kind === 'status_conflict') {
+      return reply.code(409).send({ error: result.kind, event_id: change.event_id });
+    }
+    if (result.kind === 'pending') {
+      return reply.code(202).send({ status: 'pending', event_id: change.event_id, booking_id: change.booking_id });
+    }
+    return reply.code(200).send({
+      status: result.kind,
+      event_id: change.event_id,
+      booking_id: change.booking_id,
+      crm_booking_id: result.booking!.id,
+      contact_id: result.booking!.contactId,
+      deal_id: result.booking!.dealId,
+      booking_status: result.booking!.status,
+      current_booking_id: result.booking!.currentProviderBookingId,
+      starts_at: result.booking!.startsAt.toISOString(),
+      status_changed_at: result.booking!.statusChangedAt?.toISOString() ?? null,
+    });
+  });
+
   app.post('/api/integrations/doctoralia/bookings', { bodyLimit: 16_384 }, async (req, reply) => {
     if (env.CRM_BOOKING_INGRESS_SECRET.length < 32) return reply.code(503).send({ error: 'integration_unavailable' });
     if (!authorized(req.headers.authorization, env.CRM_BOOKING_INGRESS_SECRET)) {
@@ -93,14 +150,20 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
     if (!pipelineId || !stageId) return reply.code(503).send({ error: 'deal_stage_not_configured' });
 
     const result = await app.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${booking.booking_id}, 0))`);
-      const [existing] = await tx.select().from(bookingImports)
-        .where(eq(bookingImports.providerBookingId, booking.booking_id)).limit(1);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('doctoralia-booking-status', 0))`);
+      const aliasId = await resolveBookingAlias(tx, booking.booking_id);
+      const [existing] = aliasId ? await tx.select().from(bookingImports)
+        .where(eq(bookingImports.id, aliasId)).limit(1) : [];
       if (existing) {
         const [linked] = await tx.select({ phone: contacts.phoneE164 }).from(contacts)
           .where(eq(contacts.id, existing.contactId)).limit(1);
         return { row: existing, created: false, conflict: linked?.phone !== phone };
       }
+      const [unresolvedMove] = await tx.select({ eventId: bookingStatusEvents.eventId })
+        .from(bookingStatusEvents)
+        .where(and(eq(bookingStatusEvents.newProviderBookingId, booking.booking_id), eq(bookingStatusEvents.resolution, 'pending')))
+        .limit(1);
+      if (unresolvedMove) return { unresolvedMove: true as const };
 
       const [inserted] = await tx.insert(contacts).values({
         phoneE164: phone,
@@ -173,6 +236,7 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
 
       const [row] = await tx.insert(bookingImports).values({
         providerBookingId: booking.booking_id,
+        currentProviderBookingId: booking.booking_id,
         contactId: contact.id,
         dealId,
         service: booking.service.trim(),
@@ -183,13 +247,16 @@ export default async function bookingIngressRoutes(app: FastifyInstance): Promis
         isTest: booking.is_test ?? false,
       }).returning();
       if (!row) throw new Error('booking_insert_failed');
+      await tx.insert(bookingAliases).values({ providerBookingId: booking.booking_id, bookingImportId: row.id });
+      await reconcileBookingStatus(tx, row.id);
       return { row, created: true, conflict: false };
     });
 
+    if ('unresolvedMove' in result) return reply.code(409).send({ error: 'booking_move_unresolved' });
     if (result.conflict) return reply.code(409).send({ error: 'booking_identity_conflict' });
     return reply.code(result.created ? 201 : 200).send({
       status: result.created ? 'created' : 'duplicate',
-      booking_id: result.row.providerBookingId,
+      booking_id: booking.booking_id,
       contact_id: result.row.contactId,
       crm_booking_id: result.row.id,
       deal_id: result.row.dealId,

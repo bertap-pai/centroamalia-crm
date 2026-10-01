@@ -61,6 +61,14 @@ interface DealDetail {
   properties: Record<string, string>;
   contacts: DealContact[];
   stageHistory: StageHistoryEntry[];
+  doctoraliaBookings: Array<{
+    id: string; providerBookingId: string; currentProviderBookingId: string;
+    service: string; professional: string; startsAt: string; status: string; statusChangedAt: string | null;
+  }>;
+  doctoraliaBookingHistory: Array<{
+    eventId: string; providerBookingId: string; status: string; occurredAt: string;
+    newProviderBookingId: string | null; newStartsAt: string | null;
+  }>;
 }
 
 interface PropertyDef {
@@ -340,6 +348,29 @@ export default function DealDetailPage() {
           </div>
         )}
       </div>
+
+      {deal.doctoraliaBookings?.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 8, padding: '16px 24px', border: '1px solid var(--color-border)', marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>Reserves Doctoralia</h3>
+          {deal.doctoraliaBookings.map((booking) => (
+            <div key={booking.id} style={{ fontSize: 13, padding: '8px 0', borderTop: '1px solid var(--color-border)' }}>
+              <strong>{booking.service}</strong> · {booking.status === 'canceled' ? 'Anul·lada' : booking.status === 'moved' ? 'Moguda' : 'Confirmada'}
+              <div>{booking.professional} · {fmtDateTime(booking.startsAt)}</div>
+              {booking.statusChangedAt && <div style={{ color: '#777' }}>Canvi: {fmtDateTime(booking.statusChangedAt)}</div>}
+            </div>
+          ))}
+          {deal.doctoraliaBookingHistory?.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 8, paddingTop: 8, fontSize: 12, color: '#666' }}>
+              {deal.doctoraliaBookingHistory.map((event) => (
+                <div key={event.eventId} style={{ padding: '3px 0' }}>
+                  {fmtDateTime(event.occurredAt)} · {event.status === 'canceled' ? 'Anul·lació' : 'Canvi d’hora'}
+                  {event.newStartsAt && ` → ${fmtDateTime(event.newStartsAt)}`}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stage pipeline bar */}
       <div style={{ background: '#fff', borderRadius: 10, padding: '16px 24px', border: '1px solid var(--color-border)', marginBottom: 20 }}>
