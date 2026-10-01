@@ -27,6 +27,9 @@ interface BookingRow {
   service: string;
   professional: string;
   startsAt: string;
+  status: string;
+  statusChangedAt: string | null;
+  currentProviderBookingId: string;
   source: string | null;
   isTest: boolean;
 }
@@ -497,8 +500,12 @@ export default function ContactDetailPage() {
             <div key={booking.id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', fontSize: 13 }}>
               <div style={{ flex: 1 }}>
                 <strong>{booking.service}</strong>
+                <span style={{ marginLeft: 8, color: booking.status === 'canceled' ? '#b43d36' : '#555', fontWeight: 600 }}>
+                  {booking.status === 'canceled' ? 'Anul·lada' : booking.status === 'moved' ? 'Moguda' : 'Confirmada'}
+                </span>
                 {booking.isTest && <span style={{ marginLeft: 8, color: '#777', fontSize: 11 }}>Prova</span>}
                 <div style={{ color: '#777', marginTop: 3 }}>{booking.professional}</div>
+                {booking.statusChangedAt && <div style={{ color: '#777', marginTop: 3 }}>Actualitzada: {fmtDateTime(booking.statusChangedAt)}</div>}
                 <div style={{ color: '#777', marginTop: 3 }}>
                   {booking.source ? `Canal: ${booking.source}` : 'Canal no atribuït'}
                 </div>

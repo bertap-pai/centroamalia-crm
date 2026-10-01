@@ -23,6 +23,9 @@ import {
   pipelines,
   stages,
   contacts,
+  bookingImports,
+  bookingAliases,
+  bookingStatusEvents,
   users,
 } from '@crm/db';
 import { sseRegistry } from '../lib/sse-registry.js';
@@ -488,6 +491,36 @@ export default async function dealsRoutes(app: FastifyInstance) {
         .where(eq(dealContacts.dealId, id))
         .orderBy(desc(dealContacts.isPrimary));
 
+      const doctoraliaBookings = await app.db.select({
+        id: bookingImports.id,
+        providerBookingId: bookingImports.providerBookingId,
+        currentProviderBookingId: bookingImports.currentProviderBookingId,
+        service: bookingImports.service,
+        professional: bookingImports.professional,
+        startsAt: bookingImports.startsAt,
+        status: bookingImports.status,
+        statusChangedAt: bookingImports.statusChangedAt,
+      }).from(bookingImports).where(eq(bookingImports.dealId, id));
+      const doctoraliaBookingHistory = [];
+      for (const booking of doctoraliaBookings) {
+        const aliases = await app.db.select({ providerBookingId: bookingAliases.providerBookingId })
+          .from(bookingAliases).where(eq(bookingAliases.bookingImportId, booking.id));
+        const ids = aliases.map((alias) => alias.providerBookingId);
+        if (!ids.length) continue;
+        const events = await app.db.select({
+          eventId: bookingStatusEvents.eventId,
+          providerBookingId: bookingStatusEvents.providerBookingId,
+          status: bookingStatusEvents.status,
+          occurredAt: bookingStatusEvents.occurredAt,
+          newProviderBookingId: bookingStatusEvents.newProviderBookingId,
+          newStartsAt: bookingStatusEvents.newStartsAt,
+          resolution: bookingStatusEvents.resolution,
+        }).from(bookingStatusEvents)
+          .where(inArray(bookingStatusEvents.providerBookingId, ids))
+          .orderBy(asc(bookingStatusEvents.occurredAt));
+        doctoraliaBookingHistory.push(...events.filter((event) => event.resolution === 'applied'));
+      }
+
       // Stage history
       const historyRows = await app.db
         .select({
@@ -524,6 +557,8 @@ export default async function dealsRoutes(app: FastifyInstance) {
         ownerName,
         properties,
         contacts: contactRows,
+        doctoraliaBookings,
+        doctoraliaBookingHistory,
         stageHistory: historyRows.map((h) => ({
           ...h,
           fromStageName: h.fromStageId ? (allStageMap[h.fromStageId] ?? null) : null,
